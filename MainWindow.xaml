@@ -705,6 +705,19 @@
                                 </StackPanel>
                             </Grid>
 
+                            <!-- Disclaimer honnête -->
+                            <Border Background="#120D1F" BorderBrush="#3D2B5E" BorderThickness="1"
+                                    CornerRadius="8" Padding="14,12" Margin="0,0,0,14">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="ℹ" FontSize="18" Foreground="#A78BFA"
+                                               VerticalAlignment="Top" Margin="0,1,12,0"/>
+                                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TxtSecond}">
+                                        <Run FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}">À savoir — </Run>
+                                        <Run>Aucun logiciel ne peut garantir un gain chiffré de FPS. EKIPPP OPTIMIZER optimise les conditions de votre PC : nettoyage en profondeur, libération de RAM, suppression des processus parasites, fermeture des overlays et application de tweaks Windows reconnus. Les résultats dépendent de votre configuration. L'app vous fait gagner du temps et simplifie en quelques clics des optimisations qui prendraient des heures manuellement.</Run>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+
                             <!-- Bannière admin (masquée si admin) -->
                             <Border Background="#1A0D00" BorderBrush="#92400E" BorderThickness="1"
                                     CornerRadius="8" Padding="14,10" Margin="0,0,0,14">
@@ -2821,6 +2834,19 @@
                                         </Button.Style>
                                     </Button>
                                 </Grid>
+                            </Border>
+
+                            <!-- Disclaimer Gaming -->
+                            <Border Background="#0D0A1A" BorderBrush="#2D1B4E" BorderThickness="1"
+                                    CornerRadius="8" Padding="14,12" Margin="0,0,0,16">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="ℹ" FontSize="16" Foreground="#A78BFA"
+                                               VerticalAlignment="Top" Margin="0,1,12,0"/>
+                                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TxtSecond}">
+                                        <Run FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}">Information — </Run>
+                                        <Run>Les optimisations gaming agissent sur les conditions réelles d'exécution de vos jeux (priorité CPU, timer système, overlays parasites, DVR Xbox). Elles ne peuvent pas garantir un nombre précis de FPS supplémentaires : les résultats dépendent de votre matériel et de votre configuration. Sur les PC peu optimisés, les gains sont généralement plus visibles.</Run>
+                                    </TextBlock>
+                                </StackPanel>
                             </Border>
 
                             <!-- ══ GAME BOOSTER ══════════════════════════════════════ -->
