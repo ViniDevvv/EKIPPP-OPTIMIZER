@@ -708,14 +708,18 @@
                             <!-- Disclaimer honnête -->
                             <Border Background="#120D1F" BorderBrush="#3D2B5E" BorderThickness="1"
                                     CornerRadius="8" Padding="14,12" Margin="0,0,0,14">
-                                <StackPanel Orientation="Horizontal">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
                                     <TextBlock Text="ℹ" FontSize="18" Foreground="#A78BFA"
                                                VerticalAlignment="Top" Margin="0,1,12,0"/>
-                                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TxtSecond}">
+                                    <TextBlock Grid.Column="1" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TxtSecond}">
                                         <Run FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}">À savoir — </Run>
                                         <Run>Aucun logiciel ne peut garantir un gain chiffré de FPS. EKIPPP OPTIMIZER optimise les conditions de votre PC : nettoyage en profondeur, libération de RAM, suppression des processus parasites, fermeture des overlays et application de tweaks Windows reconnus. Les résultats dépendent de votre configuration. L'app vous fait gagner du temps et simplifie en quelques clics des optimisations qui prendraient des heures manuellement.</Run>
                                     </TextBlock>
-                                </StackPanel>
+                                </Grid>
                             </Border>
 
                             <!-- Bannière admin (masquée si admin) -->
@@ -2351,11 +2355,15 @@
                                 </StackPanel>
                             </Grid>
                             <Border Style="{StaticResource Card}" Margin="0,0,0,12" Background="#0D0818">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="💡" FontSize="14" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                    <TextBlock FontSize="12" Foreground="{StaticResource TxtMuted}" TextWrapping="Wrap"
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="💡" FontSize="14" VerticalAlignment="Top" Margin="0,1,10,0"/>
+                                    <TextBlock Grid.Column="1" FontSize="12" Foreground="{StaticResource TxtMuted}" TextWrapping="Wrap"
                                                Text="Pour mettre à jour un pilote : ouvrez le Gestionnaire de périphériques → clic droit sur le composant → Mettre à jour le pilote. Pour les GPU, téléchargez directement depuis NVIDIA.com ou AMD.com."/>
-                                </StackPanel>
+                                </Grid>
                             </Border>
                             <Border Style="{StaticResource Card}">
                                 <DataGrid ItemsSource="{Binding Drivers}" AutoGenerateColumns="False" MaxHeight="580">
@@ -2834,14 +2842,18 @@
                             <!-- Disclaimer Gaming -->
                             <Border Background="#0D0A1A" BorderBrush="#2D1B4E" BorderThickness="1"
                                     CornerRadius="8" Padding="14,12" Margin="0,0,0,16">
-                                <StackPanel Orientation="Horizontal">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
                                     <TextBlock Text="ℹ" FontSize="16" Foreground="#A78BFA"
                                                VerticalAlignment="Top" Margin="0,1,12,0"/>
-                                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TxtSecond}">
+                                    <TextBlock Grid.Column="1" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TxtSecond}">
                                         <Run FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}">Information — </Run>
                                         <Run>Les optimisations gaming agissent sur les conditions réelles d'exécution de vos jeux (priorité CPU, timer système, overlays parasites, DVR Xbox). Elles ne peuvent pas garantir un nombre précis de FPS supplémentaires : les résultats dépendent de votre matériel et de votre configuration. Sur les PC peu optimisés, les gains sont généralement plus visibles.</Run>
                                     </TextBlock>
-                                </StackPanel>
+                                </Grid>
                             </Border>
 
                             <!-- ══ GAME BOOSTER ══════════════════════════════════════ -->

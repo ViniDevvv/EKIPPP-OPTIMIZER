@@ -15,7 +15,7 @@ public class DnsSpeedTestService
 {
     private static readonly DnsServer[] Servers =
     [
-        new("Cloudflare",  "1.1.1.1",        "1.0.0.1",        "Le plus rapide au monde — axé vie privée"),
+        new("Cloudflare",  "1.1.1.1",        "1.0.0.1",        "Reconnu parmi les plus rapides — axé vie privée"),
         new("Google",      "8.8.8.8",         "8.8.4.4",        "Très fiable — bonne compatibilité"),
         new("Quad9",       "9.9.9.9",         "149.112.112.112","Bloque les domaines malveillants"),
         new("OpenDNS",     "208.67.222.222",  "208.67.220.220", "Filtrage familial disponible"),
