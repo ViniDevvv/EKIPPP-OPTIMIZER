@@ -9,27 +9,51 @@ public record LicenseValidation(bool Success, LicenseStatus Status);
 
 public class LicenseService
 {
-    // ── À remplir avec tes credentials Supabase ────────────────────────────
     public const string SupabaseUrl = "https://yrgpndfperwazvrtpgyj.supabase.co";
     public const string AnonKey     = "sb_publishable_ojOVzqSlYONkgrUkWp4uPw_3Yqp-Naz";
-    // ───────────────────────────────────────────────────────────────────────
+    private const string RegPath    = @"SOFTWARE\EKIPPP-OPTIMIZER\License";
 
-    private const string RegPath = @"SOFTWARE\EKIPPP-OPTIMIZER\License";
+    // Format attendu : XXXX-XXXX-XXXX-XXXX (lettres majuscules + chiffres)
+    private static bool IsValidKeyFormat(string key) =>
+        System.Text.RegularExpressions.Regex.IsMatch(
+            key, @"^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$");
 
-    public bool IsActivatedLocally()
+    // XOR la clé avec le MachineId — liée à la machine, illisible en regedit
+    private static string ObfuscateKey(string key)
+    {
+        var keyBytes  = System.Text.Encoding.UTF8.GetBytes(key);
+        var machineId = GetMachineId();
+        var salt      = System.Text.Encoding.UTF8.GetBytes(
+                            (machineId + machineId).PadRight(64)[..Math.Min(64, (machineId + machineId).Length)]);
+        var result = new byte[keyBytes.Length];
+        for (int i = 0; i < keyBytes.Length; i++)
+            result[i] = (byte)(keyBytes[i] ^ salt[i % salt.Length]);
+        return Convert.ToBase64String(result);
+    }
+
+    private static string? DeobfuscateKey(string stored)
     {
         try
         {
-            using var k = Registry.CurrentUser.OpenSubKey(RegPath);
-            return !string.IsNullOrWhiteSpace(k?.GetValue("Key")?.ToString());
+            var encrypted = Convert.FromBase64String(stored);
+            var machineId = GetMachineId();
+            var salt      = System.Text.Encoding.UTF8.GetBytes(
+                                (machineId + machineId).PadRight(64)[..Math.Min(64, (machineId + machineId).Length)]);
+            var result = new byte[encrypted.Length];
+            for (int i = 0; i < encrypted.Length; i++)
+                result[i] = (byte)(encrypted[i] ^ salt[i % salt.Length]);
+            var key = System.Text.Encoding.UTF8.GetString(result);
+            return IsValidKeyFormat(key) ? key : null;
         }
-        catch { return false; }
+        catch { return null; }
     }
+
+    public bool IsActivatedLocally() => LoadKey() != null;
 
     public async Task<LicenseValidation> ActivateAsync(string rawKey)
     {
         var key = rawKey.Trim().ToUpperInvariant();
-        if (string.IsNullOrEmpty(key))
+        if (!IsValidKeyFormat(key))
             return new LicenseValidation(false, LicenseStatus.InvalidKey);
 
         try
@@ -77,6 +101,7 @@ public class LicenseService
             ClearKey();
             return false;
         }
+        // NetworkError accepté : on ne punit pas un utilisateur légitime sans internet
         return result.Success || result.Status == LicenseStatus.NetworkError;
     }
 
@@ -90,7 +115,7 @@ public class LicenseService
         try
         {
             using var k = Registry.CurrentUser.CreateSubKey(RegPath);
-            k.SetValue("Key", key);
+            k.SetValue("Key", ObfuscateKey(key));
         }
         catch { }
     }
@@ -100,7 +125,9 @@ public class LicenseService
         try
         {
             using var k = Registry.CurrentUser.OpenSubKey(RegPath);
-            return k?.GetValue("Key")?.ToString();
+            var stored = k?.GetValue("Key")?.ToString();
+            if (string.IsNullOrEmpty(stored)) return null;
+            return DeobfuscateKey(stored);
         }
         catch { return null; }
     }
