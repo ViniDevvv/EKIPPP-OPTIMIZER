@@ -1,0 +1,166 @@
+<Window x:Class="EkipppOptimizer.SplashWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        Width="500"
+        SizeToContent="Height">
+
+    <Border x:Name="RootBorder" CornerRadius="16" BorderThickness="1"
+            MouseLeftButtonDown="RootBorder_MouseLeftButtonDown">
+        <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#0D0A1A" Offset="0"/>
+                <GradientStop Color="#130C2A" Offset="0.5"/>
+                <GradientStop Color="#0D0A1A" Offset="1"/>
+            </LinearGradientBrush>
+        </Border.Background>
+        <Border.BorderBrush>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#5B21B6" Offset="0"/>
+                <GradientStop Color="#1D4ED8" Offset="1"/>
+            </LinearGradientBrush>
+        </Border.BorderBrush>
+        <Border.Effect>
+            <DropShadowEffect Color="#7C3AED" BlurRadius="50" ShadowDepth="0" Opacity="0.4"/>
+        </Border.Effect>
+
+        <StackPanel>
+
+            <!-- Section chargement (toujours visible) -->
+            <StackPanel x:Name="LoadingSection" Margin="44,44,44,40">
+
+                <!-- Logo image -->
+                <Image Source="pack://application:,,,/Assets/logo.png"
+                       Width="90" Height="90"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,18"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+
+                <!-- Nom de l'app -->
+                <TextBlock Text="O P T I M I Z E R" HorizontalAlignment="Center" FontSize="15"
+                           FontWeight="Bold" Foreground="#E2D9F3" Margin="0,0,0,0"/>
+
+                <!-- Trait décoratif -->
+                <Border Height="1" Margin="40,20,40,24">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="Transparent" Offset="0"/>
+                            <GradientStop Color="#5B21B6" Offset="0.5"/>
+                            <GradientStop Color="Transparent" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
+
+                <!-- Barre de chargement -->
+                <Grid Height="6" Margin="0,0,0,14">
+                    <Border Background="#1E1535" CornerRadius="3"/>
+                    <Border CornerRadius="3">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                <GradientStop Color="#7C3AED" Offset="0"/>
+                                <GradientStop Color="#2563EB" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border.RenderTransformOrigin>0,0.5</Border.RenderTransformOrigin>
+                        <Border.RenderTransform>
+                            <ScaleTransform x:Name="FillScale" ScaleX="0"/>
+                        </Border.RenderTransform>
+                    </Border>
+                </Grid>
+
+                <TextBlock x:Name="LoadingLabel" Text="Initialisation…"
+                           HorizontalAlignment="Center" FontSize="12"
+                           Foreground="#9CA3AF"/>
+            </StackPanel>
+
+            <!-- Section CGU (premier lancement uniquement) -->
+            <StackPanel x:Name="TermsSection" Visibility="Collapsed">
+
+                <!-- Séparateur -->
+                <Border Height="1" Background="#1F1840"/>
+
+                <StackPanel Margin="44,28,44,40">
+                    <TextBlock Text="CONDITIONS D'UTILISATION"
+                               FontSize="11" FontWeight="Bold"
+                               Foreground="#7C3AED" Margin="0,0,0,14"/>
+
+                    <Border Background="#0A0818" CornerRadius="10" BorderThickness="1"
+                            BorderBrush="#1F1840" Height="240" Padding="18,14">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <TextBlock FontSize="12" Foreground="#C8C8D0"
+                                       TextWrapping="Wrap" LineHeight="20"
+                                       FontFamily="Segoe UI"><Run FontWeight="Bold" Foreground="#E2D9F3">1. LICENCE D'UTILISATION</Run><LineBreak/>
+Ce logiciel est concédé sous licence personnelle et non transférable. Vous êtes autorisé à l'utiliser sur vos propres équipements uniquement. Toute reproduction, redistribution, partage ou revente est strictement interdite sans autorisation écrite préalable de l'éditeur.<LineBreak/><LineBreak/><Run FontWeight="Bold" Foreground="#E2D9F3">2. LIMITATIONS DE RESPONSABILITÉ</Run><LineBreak/>
+EKIPPP Optimizer est fourni "en l'état". L'éditeur ne saurait être tenu responsable des dommages directs ou indirects résultant de l'utilisation du logiciel. Il est recommandé de créer un point de restauration Windows avant toute optimisation.<LineBreak/><LineBreak/><Run FontWeight="Bold" Foreground="#E2D9F3">3. CONFIDENTIALITÉ ET DONNÉES</Run><LineBreak/>
+Ce logiciel ne collecte, ne stocke ni ne transmet aucune donnée personnelle. Toutes les opérations sont réalisées localement sur votre machine.<LineBreak/><LineBreak/><Run FontWeight="Bold" Foreground="#E2D9F3">4. MISES À JOUR</Run><LineBreak/>
+L'éditeur se réserve le droit de modifier ce logiciel à tout moment. L'utilisation continue vaut acceptation des nouvelles conditions.<LineBreak/><LineBreak/><Run FontWeight="Bold" Foreground="#E2D9F3">5. DROIT APPLICABLE</Run><LineBreak/>
+Ces conditions sont régies par le droit français. En cas de litige, compétence exclusive est attribuée aux tribunaux français compétents.
+                            </TextBlock>
+                        </ScrollViewer>
+                    </Border>
+
+                    <!-- Checkbox -->
+                    <CheckBox x:Name="AcceptCheckbox" Margin="0,20,0,18"
+                              Checked="AcceptCheckbox_Changed" Unchecked="AcceptCheckbox_Changed">
+                        <TextBlock Text="J'ai lu et j'accepte les conditions d'utilisation"
+                                   Foreground="#E2D9F3" FontSize="13"/>
+                    </CheckBox>
+
+                    <!-- Boutons -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="2*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Button Grid.Column="0" x:Name="DeclineBtn" Height="42"
+                                Click="DeclineBtn_Click">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="#1A1530" CornerRadius="10" BorderThickness="1"
+                                            BorderBrush="#2D2550" Cursor="Hand">
+                                        <TextBlock Text="Décliner" Foreground="#9CA3AF"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   FontSize="13"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+
+                        <Button Grid.Column="2" x:Name="AcceptBtn" Height="42"
+                                IsEnabled="False" Click="AcceptBtn_Click">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="AcceptBorder" CornerRadius="10" Cursor="Hand">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="#7C3AED" Offset="0"/>
+                                                <GradientStop Color="#2563EB" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <TextBlock Text="Commencer →" Foreground="White"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   FontWeight="Bold" FontSize="14"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsEnabled" Value="False">
+                                            <Setter TargetName="AcceptBorder" Property="Opacity" Value="0.35"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </Grid>
+
+                </StackPanel>
+            </StackPanel>
+
+        </StackPanel>
+    </Border>
+</Window>

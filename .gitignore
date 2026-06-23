@@ -1,0 +1,9 @@
+bin/
+obj/
+publish/
+publish-out*/
+.vs/
+*.user
+*.suo
+*.cache
+crash.log

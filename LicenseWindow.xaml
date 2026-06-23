@@ -1,0 +1,117 @@
+<Window x:Class="EkipppOptimizer.LicenseWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        Width="500"
+        SizeToContent="Height"
+        TextOptions.TextRenderingMode="ClearType"
+        TextOptions.TextFormattingMode="Display">
+
+    <Border x:Name="RootBorder" CornerRadius="16" BorderThickness="1"
+            MouseLeftButtonDown="RootBorder_MouseLeftButtonDown">
+        <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#0D0A1A" Offset="0"/>
+                <GradientStop Color="#130C2A" Offset="0.5"/>
+                <GradientStop Color="#0D0A1A" Offset="1"/>
+            </LinearGradientBrush>
+        </Border.Background>
+        <Border.BorderBrush>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#5B21B6" Offset="0"/>
+                <GradientStop Color="#1D4ED8" Offset="1"/>
+            </LinearGradientBrush>
+        </Border.BorderBrush>
+        <Border.Effect>
+            <DropShadowEffect Color="#7C3AED" BlurRadius="50" ShadowDepth="0" Opacity="0.4"/>
+        </Border.Effect>
+
+        <StackPanel Margin="44,44,44,44">
+
+            <!-- Logo -->
+            <Image Source="pack://application:,,,/Assets/logo.png"
+                   Width="72" Height="72" HorizontalAlignment="Center"
+                   Margin="0,0,0,18" RenderOptions.BitmapScalingMode="HighQuality"/>
+
+            <!-- Titres -->
+            <TextBlock Text="ACTIVATION" HorizontalAlignment="Center"
+                       FontSize="11" FontWeight="Bold" Foreground="#7C3AED"
+                       Margin="0,0,0,6"/>
+            <TextBlock Text="Entrez votre clé de licence"
+                       HorizontalAlignment="Center" FontSize="15"
+                       FontWeight="SemiBold" Foreground="#E2D9F3" Margin="0,0,0,4"/>
+            <TextBlock Text="Format : XXXX-XXXX-XXXX-XXXX"
+                       HorizontalAlignment="Center" FontSize="12"
+                       Foreground="#6B7280" Margin="0,0,0,28"/>
+
+            <!-- Trait décoratif -->
+            <Border Height="1" Margin="20,0,20,28">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="Transparent" Offset="0"/>
+                        <GradientStop Color="#5B21B6" Offset="0.5"/>
+                        <GradientStop Color="Transparent" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+            </Border>
+
+            <!-- Champ clé -->
+            <Border CornerRadius="10" BorderThickness="1" BorderBrush="#2D2550"
+                    Background="#0A0818">
+                <TextBox x:Name="KeyInput" Height="46" FontSize="16"
+                         FontFamily="Consolas" FontWeight="SemiBold"
+                         HorizontalContentAlignment="Center"
+                         VerticalContentAlignment="Center"
+                         Background="Transparent" Foreground="#E2D9F3"
+                         CaretBrush="#A78BFA" BorderThickness="0"
+                         Padding="14,0" MaxLength="19"
+                         TextChanged="KeyInput_TextChanged"
+                         KeyDown="KeyInput_KeyDown"/>
+            </Border>
+
+            <!-- Message statut -->
+            <TextBlock x:Name="StatusMsg" Margin="0,12,0,0" FontSize="12"
+                       HorizontalAlignment="Center" TextWrapping="Wrap"
+                       Visibility="Collapsed"/>
+
+            <!-- Bouton Activer -->
+            <Button x:Name="ActivateBtn" Height="46" Margin="0,20,0,0"
+                    Click="ActivateBtn_Click" IsEnabled="False" Cursor="Hand">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="10">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="#7C3AED" Offset="0"/>
+                                    <GradientStop Color="#2563EB" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <TextBlock x:Name="BtnTxt" Text="Activer la licence"
+                                       Foreground="White" HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       FontWeight="Bold" FontSize="14"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.35"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+
+            <!-- Lien achat -->
+            <TextBlock HorizontalAlignment="Center" Margin="0,16,0,0" FontSize="12">
+                <Hyperlink x:Name="BuyLink" Foreground="#7C3AED"
+                           Click="BuyLink_Click" TextDecorations="None">
+                    Pas encore de licence ? Obtenir une clé →
+                </Hyperlink>
+            </TextBlock>
+
+        </StackPanel>
+    </Border>
+</Window>
