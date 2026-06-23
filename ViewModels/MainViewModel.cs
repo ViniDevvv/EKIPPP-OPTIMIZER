@@ -1793,6 +1793,7 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<BsodEntry> BsodEvents { get; } = [];
     [ObservableProperty] private string _bsodStatus = "Cliquez sur 'Analyser' pour scanner les crashs.";
 
+    [RelayCommand]
     private void RefreshBsod()
     {
         BsodStatus = "Analyse des crashs système…";
@@ -1809,9 +1810,6 @@ public partial class MainViewModel : ObservableObject
             });
         });
     }
-
-    [RelayCommand]
-    private void RefreshBsodCommand() => RefreshBsod();
 
     // ══════════════════════════════════════════════════════════════════════════
     // TAB 13 — AUTOMATISATION

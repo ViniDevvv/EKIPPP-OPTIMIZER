@@ -474,7 +474,7 @@
                         <TextBlock Text=" OPTIMIZER" FontSize="15" FontWeight="Light"
                                    Foreground="{StaticResource TxtSecond}" VerticalAlignment="Center"/>
                         <Border Background="#2D1B4E" CornerRadius="4" Padding="6,2" Margin="12,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="v2.0" FontSize="10" Foreground="{StaticResource AccentLight}" FontWeight="Bold"/>
+                            <TextBlock Text="{Binding VersionDisplay}" FontSize="10" Foreground="{StaticResource AccentLight}" FontWeight="Bold"/>
                         </Border>
                     </StackPanel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,14,0">
@@ -3062,11 +3062,11 @@
                             <Border Style="{StaticResource Card}">
                                 <StackPanel>
                                     <TextBlock Text="HISTORIQUE DES SESSIONS" Style="{StaticResource MetricLabel}" Margin="0,0,0,10"/>
-                                    <TextBlock Text="Activez le Game Booster pour enregistrer automatiquement vos sessions de jeu."
+                                    <TextBlock Text="Aucune session enregistrée pour le moment."
                                                FontSize="12" Foreground="{StaticResource TxtMuted}" Margin="0,0,0,10" TextWrapping="Wrap">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
-                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Setter Property="Visibility" Value="Collapsed"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding GameSessions.Count}" Value="0">
                                                         <Setter Property="Visibility" Value="Visible"/>
@@ -3273,7 +3273,7 @@
                                                        Margin="0,4,0,0" TextWrapping="Wrap"/>
                                         </StackPanel>
                                         <Button Grid.Column="1" Style="{StaticResource SecBtn}" Content="Analyser les crashs"
-                                                Command="{Binding RefreshBsodCommandCommand}" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                                                Command="{Binding RefreshBsodCommand}" VerticalAlignment="Center" Margin="12,0,0,0"/>
                                     </Grid>
                                     <ItemsControl ItemsSource="{Binding BsodEvents}">
                                         <ItemsControl.ItemTemplate>
@@ -3490,7 +3490,7 @@
                                         <TextBlock Text="RAPPORT SYSTÈME" Style="{StaticResource MetricLabel}" Margin="0,0,0,4"/>
                                         <TextBlock Text="Exporter un rapport complet" FontSize="16" FontWeight="Bold"
                                                    Foreground="{StaticResource TxtPrimary}" Margin="0,0,0,4"/>
-                                        <TextBlock Text="Génère un fichier .txt sur le Bureau avec toutes les infos matériel, températures, score PC et problèmes détectés. Idéal pour le support client."
+                                        <TextBlock Text="Génère un fichier .html sur le Bureau avec toutes les infos matériel, températures, score PC et problèmes détectés. Idéal pour le support client."
                                                    TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TxtSecond}"/>
                                     </StackPanel>
                                     <Button Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0"
