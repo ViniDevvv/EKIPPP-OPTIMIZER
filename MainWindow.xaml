@@ -1252,8 +1252,8 @@
                             <Border Background="#0A1A0A" BorderBrush="#1A4A1A" BorderThickness="1" CornerRadius="8" Padding="14,10" Margin="0,0,0,14">
                                 <TextBlock FontSize="13" Foreground="#4ADE80" TextWrapping="Wrap">
                                     <Run Text="🔒 "/>
-                                    <Run FontWeight="SemiBold" Text="100% sécurisé — "/>
-                                    <Run Text="Tous les fichiers supprimés sont régénérés automatiquement par Windows et vos applications. Aucune donnée personnelle n'est concernée."/>
+                                    <Run FontWeight="SemiBold" Text="Fichiers temporaires uniquement — "/>
+                                    <Run Text="Les catégories proposées ciblent des fichiers que Windows et vos applications régénèrent lors de leur prochain usage. Aucun fichier personnel n'est concerné."/>
                                 </TextBlock>
                             </Border>
 
@@ -1775,7 +1775,7 @@
                                         <StackPanel>
                                             <TextBlock Text="Optimiser TCP/IP" FontWeight="SemiBold" FontSize="13" Foreground="{StaticResource TxtPrimary}"/>
                                             <TextBlock FontSize="13" Foreground="{StaticResource TxtMuted}" TextWrapping="Wrap"
-                                                       Text="Ajuste les paramètres TCP/IP de Windows pour réduire la latence et améliorer le débit réseau."/>
+                                                       Text="Ajuste des paramètres TCP/IP de Windows pour tenter de réduire la latence. Les résultats varient selon votre connexion et votre matériel."/>
                                         </StackPanel>
                                         <Button Grid.Column="1" Style="{StaticResource SecBtn}" Margin="12,0,0,0"
                                                 Command="{Binding OptimizeTcpCommand}"
@@ -1803,7 +1803,7 @@
                                         <StackPanel>
                                             <TextBlock Text="DNS Cloudflare 1.1.1.1" FontWeight="SemiBold" FontSize="13" Foreground="{StaticResource TxtPrimary}"/>
                                             <TextBlock FontSize="13" Foreground="{StaticResource TxtMuted}" TextWrapping="Wrap"
-                                                       Text="Configure votre carte réseau pour utiliser le DNS le plus rapide au monde (Cloudflare). Réduit le temps de chargement des sites."/>
+                                                       Text="Configure votre carte réseau pour utiliser le DNS Cloudflare 1.1.1.1, reconnu parmi les plus rapides et respectueux de la vie privée. Peut réduire le temps de résolution des sites."/>
                                         </StackPanel>
                                         <Button Grid.Column="1" Style="{StaticResource SecBtn}" Margin="12,0,0,0"
                                                 Command="{Binding OptimizeDnsServersCommand}"
@@ -2814,7 +2814,7 @@
                                             </Border>
                                         </StackPanel>
                                         <TextBlock FontSize="12" Foreground="{StaticResource TxtMuted}" Margin="0,0,0,4" TextWrapping="Wrap">
-                                            <Run Text="Plan Ultimate Performance + services gaming optimisés + Game Booster ON — performances maximales en un clic."/>
+                                            <Run Text="Plan Ultimate Performance + services gaming optimisés + Game Booster ON — conditions optimales pour vos jeux en un clic."/>
                                         </TextBlock>
                                         <TextBlock Text="{Binding TurboSummary}" FontSize="12"
                                                    Foreground="{StaticResource AccentLight}" TextWrapping="Wrap"/>
@@ -2868,7 +2868,7 @@
                                                     <TextBlock FontSize="12" Foreground="{StaticResource TxtSecond}" Margin="0,0,0,5" TextWrapping="Wrap">
                                                         <Run Text="⚡ " Foreground="#A78BFA"/><Run Text="Priorité processus → HAUTE" FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}"/>
                                                     </TextBlock>
-                                                    <TextBlock Text="   Le jeu reçoit plus de temps CPU que tout le reste." FontSize="11" Foreground="{StaticResource TxtMuted}" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                                    <TextBlock Text="   Le jeu reçoit plus de temps CPU face aux processus en arrière-plan de priorité normale." FontSize="11" Foreground="{StaticResource TxtMuted}" Margin="0,0,0,8" TextWrapping="Wrap"/>
                                                     <TextBlock FontSize="12" Foreground="{StaticResource TxtSecond}" Margin="0,0,0,5" TextWrapping="Wrap">
                                                         <Run Text="🖥️ " Foreground="#A78BFA"/><Run Text="Tous les cores CPU dédiés" FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}"/>
                                                     </TextBlock>
@@ -2876,7 +2876,7 @@
                                                     <TextBlock FontSize="12" Foreground="{StaticResource TxtSecond}" Margin="0,0,0,5" TextWrapping="Wrap">
                                                         <Run Text="⏱️ " Foreground="#A78BFA"/><Run Text="Timer système → 1ms" FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}"/>
                                                     </TextBlock>
-                                                    <TextBlock Text="   Réduit la latence input. Windows tourne à 15ms par défaut." FontSize="11" Foreground="{StaticResource TxtMuted}" TextWrapping="Wrap"/>
+                                                    <TextBlock Text="   Réduit la latence input. L'intervalle du timer passe de ~15ms (défaut Windows) à 1ms, si aucune application ne l'a déjà réduit." FontSize="11" Foreground="{StaticResource TxtMuted}" TextWrapping="Wrap"/>
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" Margin="12,0,0,0">
                                                     <TextBlock FontSize="12" Foreground="{StaticResource TxtSecond}" Margin="0,0,0,5" TextWrapping="Wrap">
@@ -2890,7 +2890,7 @@
                                                     <TextBlock FontSize="12" Foreground="{StaticResource TxtSecond}" Margin="0,0,0,5" TextWrapping="Wrap">
                                                         <Run Text="🔍 " Foreground="#A78BFA"/><Run Text="Détection automatique" FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}"/>
                                                     </TextBlock>
-                                                    <TextBlock Text="   Surveille toutes les 3s. Se déclenche dès qu'un jeu est lancé." FontSize="11" Foreground="{StaticResource TxtMuted}" TextWrapping="Wrap"/>
+                                                    <TextBlock Text="   Surveille toutes les 3s. Active le boost dans les secondes suivant le lancement d'un jeu." FontSize="11" Foreground="{StaticResource TxtMuted}" TextWrapping="Wrap"/>
                                                 </StackPanel>
                                             </Grid>
                                         </StackPanel>
@@ -3033,7 +3033,7 @@
                                                     IsChecked="{Binding TwFullscreenOptim}" Command="{Binding ToggleFullscreenOptimCommand}"/>
                                     <local:TweakRow Title="Priorité GPU/CPU élevée" Sub="GPU Priority 8 et CPU Priority 6 pour les jeux"
                                                     IsChecked="{Binding TwGpuPriority}" Command="{Binding ToggleGpuPriorityCommand}"/>
-                                    <local:TweakRow Title="Réactivité système maximale" Sub="SystemResponsiveness=0 pour allouer 100% aux jeux"
+                                    <local:TweakRow Title="Réactivité système maximale" Sub="SystemResponsiveness=0 — supprime la réserve multimédias en arrière-plan, plus de CPU pour le jeu actif"
                                                     IsChecked="{Binding TwSystemResp}" Command="{Binding ToggleSystemRespCommand}"/>
                                     <local:TweakRow Title="Priorité processus premier plan" Sub="Win32PrioritySeparation=38 pour booster le jeu actif"
                                                     IsChecked="{Binding TwWin32Priority}" Command="{Binding ToggleWin32PriorityCommand}"/>
