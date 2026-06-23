@@ -2870,59 +2870,6 @@
                                         </StackPanel>
                                     </Border>
 
-                                    <!-- Bouton ON/OFF principal -->
-                                    <Grid Margin="0,0,0,14">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel>
-                                            <TextBlock FontSize="14" FontWeight="SemiBold"
-                                                       Foreground="{StaticResource TxtPrimary}">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Text" Value="Boost Automatique"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsBoostActive}" Value="True">
-                                                                <Setter Property="Text" Value="Boost Automatique  ●  ACTIF"/>
-                                                                <Setter Property="Foreground" Value="{StaticResource AccentLight}"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                            <TextBlock Text="{Binding BoostStatus}" Foreground="{StaticResource TxtMuted}"
-                                                       FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"/>
-                                            <TextBlock Text="{Binding BoostedGameName}" FontSize="13" FontWeight="Bold"
-                                                       Foreground="{StaticResource AccentLight}" Margin="0,6,0,0">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding BoostedGameName}" Value="">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                        </StackPanel>
-                                        <Button Grid.Column="1" VerticalAlignment="Center" MinWidth="150" Height="38"
-                                                Command="{Binding ToggleGameBoostCommand}">
-                                            <Button.Style>
-                                                <Style TargetType="Button" BasedOn="{StaticResource PrimaryBtn}">
-                                                    <Setter Property="Content" Value="Activer le boost"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsBoostActive}" Value="True">
-                                                            <Setter Property="Content" Value="Désactiver"/>
-                                                            <Setter Property="Background" Value="#6C2BD9"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Button.Style>
-                                        </Button>
-                                    </Grid>
-
                                     <Separator Background="#2A1A3E" Margin="0,0,0,14"/>
 
                                     <!-- RAM Optimizer -->
