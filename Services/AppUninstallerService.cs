@@ -151,22 +151,38 @@ public class AppUninstallerService
     private static long CleanRegistryResiuals(string appName)
     {
         long count = 0;
-        try
+        // Cherche uniquement dans les clés Uninstall connues — ne touche jamais SOFTWARE\<nom> directement
+        var uninstallPaths = new (string path, RegistryKey hive)[]
         {
-            var short_ = appName.Split(' ').First();
-            var paths = new[]
+            (@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",             Registry.CurrentUser),
+            (@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",             Registry.LocalMachine),
+            (@"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall", Registry.LocalMachine),
+        };
+
+        foreach (var (path, hive) in uninstallPaths)
+        {
+            try
             {
-                @"SOFTWARE\" + short_,
-                @"SOFTWARE\" + appName,
-            };
-            foreach (var p in paths)
-            {
-                try { Registry.CurrentUser.DeleteSubKeyTree(p, throwOnMissingSubKey: false); count++; } catch { }
-                try { Registry.LocalMachine.DeleteSubKeyTree(p, throwOnMissingSubKey: false); count++; } catch { }
+                using var root = hive.OpenSubKey(path, writable: true);
+                if (root == null) continue;
+                foreach (var subName in root.GetSubKeyNames().ToArray())
+                {
+                    try
+                    {
+                        using var sub = root.OpenSubKey(subName);
+                        var name = sub?.GetValue("DisplayName")?.ToString();
+                        if (string.Equals(name, appName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            root.DeleteSubKeyTree(subName, throwOnMissingSubKey: false);
+                            count++;
+                        }
+                    }
+                    catch { }
+                }
             }
+            catch { }
         }
-        catch { }
-        return count * 1024;
+        return count * 512;
     }
 
     private static string FormatDate(string? raw)

@@ -91,7 +91,6 @@ public class GameBoosterService
                 if (!IsGameProcess(p.ProcessName)) continue;
                 var prev = p.PriorityClass;
                 p.PriorityClass = ProcessPriorityClass.High;
-                SetAffinityAll(p);
                 results.Add(new BoostResult(p.ProcessName, p.Id, true, $"Priorité élevée appliquée (était: {prev})"));
                 _boostedProcesses.Add((p, prev));
             }
@@ -141,7 +140,6 @@ public class GameBoosterService
                     {
                         var prev = p.PriorityClass;
                         p.PriorityClass = ProcessPriorityClass.High;
-                        SetAffinityAll(p);
                         _boostedProcesses.Add((p, prev));
                         if (_sessionStart == null)
                         {
@@ -187,18 +185,6 @@ public class GameBoosterService
     private static bool IsGameProcess(string name)
         => KnownGames.Contains(name)
         || KnownGames.Any(k => name.StartsWith(k, StringComparison.OrdinalIgnoreCase));
-
-    private static void SetAffinityAll(Process p)
-    {
-        try
-        {
-            var cores = Environment.ProcessorCount;
-            if (cores <= 1) return;
-            nint mask = ((nint)1 << cores) - 1;
-            p.ProcessorAffinity = mask;
-        }
-        catch { }
-    }
 
     // ── Killer overlays ──────────────────────────────────────────────────────
     public List<string> GetRunningOverlays()

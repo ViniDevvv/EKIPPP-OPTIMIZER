@@ -43,11 +43,11 @@ public record BenchmarkResult(long ReadMBs, long WriteMBs)
 
 public class StorageService
 {
-    // ── Partitions — DriveInfo, instantané ────────────────────────────────────
+    // ── Partitions — DriveInfo + WMI pour mapper lettre → disque physique ───────
     public List<PartitionInfo> GetPartitions()
     {
-        var ssdModels = GetSsdModels(); // modèles physiques rapides
-        var result    = new List<PartitionInfo>();
+        var letterToSsd = GetDriveLetterToSSDMap();
+        var result      = new List<PartitionInfo>();
         try
         {
             foreach (var d in DriveInfo.GetDrives())
@@ -59,7 +59,7 @@ public class StorageService
                     var label  = d.VolumeLabel;
                     var total  = d.TotalSize / (1024L * 1024 * 1024);
                     var free   = d.AvailableFreeSpace / (1024L * 1024 * 1024);
-                    var isSSD  = ssdModels.Any(m => IsSSDByModel(m));
+                    letterToSsd.TryGetValue(letter, out var isSSD);
                     result.Add(new PartitionInfo(letter, label, total, free, isSSD));
                 }
                 catch { }
@@ -69,27 +69,97 @@ public class StorageService
         return result;
     }
 
+    private static Dictionary<string, bool> GetDriveLetterToSSDMap()
+    {
+        var map = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            using var ldSearcher = new ManagementObjectSearcher(
+                "SELECT DeviceID FROM Win32_LogicalDisk WHERE DriveType=3");
+            foreach (ManagementObject ld in ldSearcher.Get())
+            {
+                var letter = ld["DeviceID"]?.ToString();
+                if (string.IsNullOrEmpty(letter)) continue;
+                try
+                {
+                    using var partSearcher = new ManagementObjectSearcher(
+                        $"ASSOCIATORS OF {{Win32_LogicalDisk.DeviceID='{letter}'}} WHERE AssocClass=Win32_LogicalDiskToPartition");
+                    foreach (ManagementObject part in partSearcher.Get())
+                    {
+                        try
+                        {
+                            using var diskSearcher = new ManagementObjectSearcher(
+                                $"ASSOCIATORS OF {{Win32_DiskPartition.DeviceID='{part["DeviceID"]}'}} WHERE AssocClass=Win32_DiskDriveToDiskPartition");
+                            foreach (ManagementObject disk in diskSearcher.Get())
+                            {
+                                map[letter] = IsSSDByModel(disk["Model"]?.ToString() ?? "");
+                                break;
+                            }
+                        }
+                        catch { }
+                        break;
+                    }
+                }
+                catch { }
+            }
+        }
+        catch { }
+        return map;
+    }
+
     // ── Disques physiques ─────────────────────────────────────────────────────
     public List<DriveHealth> GetAllDrives()
     {
         var result = new List<DriveHealth>();
         try
         {
-            using var s = new ManagementObjectSearcher("SELECT Model, Size, Status FROM Win32_DiskDrive");
-            foreach (var o in s.Get())
+            // MSFT_Disk donne le vrai état de santé Windows (SMART analysé par le système)
+            // HealthStatus : 0=Sain, 1=Avertissement, 2=Problème
+            // MediaType    : 3=HDD, 4=SSD, 5=SCM/NVMe
+            var scope = new ManagementScope(@"\\.\ROOT\Microsoft\Windows\Storage");
+            scope.Connect();
+            using var s = new ManagementObjectSearcher(scope,
+                new ObjectQuery("SELECT FriendlyName, Size, MediaType, HealthStatus FROM MSFT_Disk"));
+            foreach (ManagementObject o in s.Get())
             {
-                var model  = o["Model"]?.ToString() ?? "Disque";
-                var sizeGB = Convert.ToInt64(o["Size"] ?? 0L) / (1024L * 1024 * 1024);
-                var status = o["Status"]?.ToString() ?? "OK";
-                var isSSD  = IsSSDByModel(model);
-                var health = status == "OK" ? (isSSD ? 95 : 88) : 60;
+                var model      = o["FriendlyName"]?.ToString() ?? "Disque";
+                var sizeGB     = Convert.ToInt64(o["Size"] ?? 0L) / (1024L * 1024 * 1024);
+                var mediaType  = Convert.ToInt32(o["MediaType"] ?? 0);
+                var healthCode = Convert.ToInt32(o["HealthStatus"] ?? 0);
+                var isSSD      = mediaType == 4 || mediaType == 5 || IsSSDByModel(model);
+                var (healthPct, healthLabel) = healthCode switch
+                {
+                    0 => (100, "✓ Sain"),
+                    1 => (50,  "⚠ Avertissement"),
+                    _ => (10,  "✗ Problème détecté"),
+                };
                 result.Add(new DriveHealth(model, isSSD ? "SSD" : "HDD", sizeGB, 0,
-                    health, health >= 90 ? "Excellent" : "Bon", isSSD,
+                    healthPct, healthLabel, isSSD,
                     isSSD ? 550 : 130, isSSD ? 500 : 110));
             }
         }
         catch { }
-        return result.Count > 0 ? result : [new DriveHealth("Disque principal", "HDD", 500, 0, 85, "Bon", false, 120, 100)];
+
+        // Fallback Win32_DiskDrive si MSFT_Disk indisponible
+        if (result.Count == 0)
+        {
+            try
+            {
+                using var s = new ManagementObjectSearcher("SELECT Model, Size, Status FROM Win32_DiskDrive");
+                foreach (var o in s.Get())
+                {
+                    var model  = o["Model"]?.ToString() ?? "Disque";
+                    var sizeGB = Convert.ToInt64(o["Size"] ?? 0L) / (1024L * 1024 * 1024);
+                    var status = o["Status"]?.ToString() ?? "OK";
+                    var isSSD  = IsSSDByModel(model);
+                    result.Add(new DriveHealth(model, isSSD ? "SSD" : "HDD", sizeGB, 0,
+                        0, status == "OK" ? "✓ OK" : "✗ Erreur", isSSD,
+                        isSSD ? 550 : 130, isSSD ? 500 : 110));
+                }
+            }
+            catch { }
+        }
+        return result.Count > 0 ? result : [new DriveHealth("Disque principal", "HDD", 500, 0, 0, "✓ OK", false, 120, 100)];
     }
 
     // ── SMART ────────────────────────────────────────────────────────────────

@@ -2313,14 +2313,9 @@
                                                                 <Run Text="{Binding ReadSpeedMBs, Mode=OneWay}"/><Run Text=" Mo/s"/>
                                                             </TextBlock>
                                                         </StackPanel>
-                                                        <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="12,0,0,0">
-                                                            <TextBlock Text="{Binding Status}" FontSize="12" FontWeight="Bold"
-                                                                       Foreground="{StaticResource Success}" TextAlignment="Right"/>
-                                                            <TextBlock FontSize="20" FontWeight="Black"
-                                                                       Foreground="{StaticResource AccentLight}" TextAlignment="Right">
-                                                                <Run Text="{Binding HealthPercent, Mode=OneWay}"/><Run Text="%"/>
-                                                            </TextBlock>
-                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="14" FontWeight="Bold"
+                                                                   Foreground="{StaticResource Success}" TextAlignment="Right"
+                                                                   HorizontalAlignment="Right" VerticalAlignment="Center" Margin="12,0,0,0"/>
                                                     </Grid>
                                                 </Border>
                                             </DataTemplate>

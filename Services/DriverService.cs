@@ -20,7 +20,10 @@ public class DriverService
 
     public List<DriverEntry> GetDrivers()
     {
+        // Récupère les appareils avec un code d'erreur WMI (vrais problèmes matériels)
+        var errorDevices = GetErrorDeviceNames();
         var list = new List<DriverEntry>();
+
         try
         {
             using var searcher = new ManagementObjectSearcher(
@@ -37,8 +40,12 @@ public class DriverService
                 if (string.IsNullOrWhiteSpace(name)) continue;
                 if (SkipClasses.Contains(cls, StringComparer.OrdinalIgnoreCase)) continue;
 
-                var needs = !signed;
-                list.Add(new DriverEntry(name, version, mfr, cls, "OK", needs));
+                // Nécessite attention si : pilote non signé OU appareil en erreur WMI
+                var hasError = errorDevices.Contains(name);
+                var needs = !signed || hasError;
+                var status = hasError ? "Erreur" : "OK";
+
+                list.Add(new DriverEntry(name, version, mfr, cls, status, needs));
             }
         }
         catch { }
@@ -55,5 +62,22 @@ public class DriverService
         return GetDrivers()
             .Where(d => PriorityClasses.Contains(d.DeviceClass, StringComparer.OrdinalIgnoreCase))
             .ToList();
+    }
+
+    private static HashSet<string> GetErrorDeviceNames()
+    {
+        var errors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            using var searcher = new ManagementObjectSearcher(
+                "SELECT Name, ConfigManagerErrorCode FROM Win32_PnPEntity WHERE ConfigManagerErrorCode != 0");
+            foreach (var obj in searcher.Get())
+            {
+                var name = obj["Name"]?.ToString();
+                if (!string.IsNullOrEmpty(name)) errors.Add(name);
+            }
+        }
+        catch { }
+        return errors;
     }
 }
