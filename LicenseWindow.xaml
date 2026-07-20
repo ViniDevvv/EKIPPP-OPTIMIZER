@@ -30,6 +30,28 @@
             <DropShadowEffect Color="#7C3AED" BlurRadius="50" ShadowDepth="0" Opacity="0.4"/>
         </Border.Effect>
 
+        <Grid>
+        <!-- Bouton fermer -->
+        <Button Click="CloseBtn_Click" Width="32" Height="32"
+                HorizontalAlignment="Right" VerticalAlignment="Top"
+                Margin="0,12,12,0" Cursor="Hand" BorderThickness="0" Background="Transparent"
+                Panel.ZIndex="10">
+            <Button.Template>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" CornerRadius="8" Background="Transparent">
+                        <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="10"
+                                   Foreground="#555580" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#C42B1C"/>
+                            <Setter TargetName="Bd" Property="TextBlock.Foreground" Value="White"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Button.Template>
+        </Button>
+
         <StackPanel Margin="44,44,44,44">
 
             <!-- Logo -->
@@ -113,5 +135,6 @@
             </TextBlock>
 
         </StackPanel>
+        </Grid>
     </Border>
 </Window>

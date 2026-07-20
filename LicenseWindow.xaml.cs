@@ -22,6 +22,12 @@ public partial class LicenseWindow : Window
         try { DragMove(); } catch { }
     }
 
+    private void CloseBtn_Click(object sender, RoutedEventArgs e)
+    {
+        DialogResult = false;
+        Close();
+    }
+
     private void KeyInput_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
         // Auto-format XXXX-XXXX-XXXX-XXXX
