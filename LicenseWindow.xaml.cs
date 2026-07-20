@@ -95,10 +95,9 @@ public partial class LicenseWindow : Window
         StatusMsg.Visibility = Visibility.Visible;
     }
 
-    // Remplace l'URL par ton site de vente
     private void BuyLink_Click(object sender, RoutedEventArgs e)
     {
-        const string url = "https://votre-site.com/licence"; // ← à modifier
+        const string url = "https://ekippp-site.vercel.app/";
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
         catch { }
     }
