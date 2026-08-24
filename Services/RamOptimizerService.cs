@@ -82,9 +82,12 @@ public class RamOptimizerService
         long after  = GetAvailableRamMB();
         long freed  = Math.Max(0, after - before);
 
+        // Note : vider le working set d'un process ne libère pas de RAM physique, ça déplace ses
+        // pages vers la standby list (déjà comptée "disponible" par Windows) — seule la purge de
+        // la standby list (ci-dessous) libère réellement de la mémoire utilisable.
         string msg = purged
-            ? $"{freed} Mo libérés ({wsFreed} processus compressés, standby purgée)"
-            : $"{freed} Mo libérés ({wsFreed} processus compressés) — purge standby nécessite admin";
+            ? $"{freed} Mo libérés ({wsFreed} processus optimisés, standby purgée)"
+            : $"{freed} Mo libérés ({wsFreed} processus optimisés) — purge standby nécessite admin";
 
         return (freed, msg);
     }
@@ -92,15 +95,19 @@ public class RamOptimizerService
     private int EmptyWorkingSets()
     {
         int count = 0;
+        int currentPid = Process.GetCurrentProcess().Id;
         foreach (var p in Process.GetProcesses())
         {
             try
             {
-                if (p.Id == Process.GetCurrentProcess().Id) continue;
-                SetProcessWorkingSetSize(p.Handle, -1, -1);
-                count++;
+                // Ne compte que les appels qui ont réellement réussi — SetProcessWorkingSetSize
+                // renvoie false (sans exception) pour la plupart des process système/protégés,
+                // faute des droits PROCESS_SET_QUOTA nécessaires.
+                if (p.Id != currentPid && SetProcessWorkingSetSize(p.Handle, -1, -1))
+                    count++;
             }
             catch { }
+            finally { p.Dispose(); }
         }
         return count;
     }

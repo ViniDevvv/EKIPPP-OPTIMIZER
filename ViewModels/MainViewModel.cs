@@ -19,7 +19,7 @@ public partial class MainViewModel : ObservableObject
     private readonly WindowsRepairService    _repair       = new();
     private readonly StorageService          _storage      = new();
     private readonly DriverService           _drivers      = new();
-    private readonly DiagnosticsService      _diagnostics  = new();
+    private readonly DiagnosticsService      _diagnostics;
     private readonly RestorePointService     _restore      = new();
     private readonly ScheduledTaskService    _scheduler    = new();
     private readonly GameBoosterService      _booster          = new();
@@ -33,6 +33,7 @@ public partial class MainViewModel : ObservableObject
     private readonly GameCacheService        _gameCache        = new();
     private readonly AppUninstallerService   _uninstaller      = new();
     private readonly BrowserCleanerService   _browserCleaner   = new();
+    private readonly FiveMDoctorService      _fivemDoctor      = new();
 
     private DispatcherTimer? _monitorTimer;
     private DispatcherTimer? _diagDebounce;
@@ -160,9 +161,12 @@ public partial class MainViewModel : ObservableObject
         // Tab 0=Dashboard  1=Nettoyage  2=Démarrage  3=Réseau  4=Stockage
         //     5=Pilotes   6=Problèmes  7=Profils    8=Gaming  9=Confidentialité
         //     10=Sécurité 11=Automatisation 12=Désinstalleur
+        if (value == 0) StartMonitoring();
+        else            StopMonitoring();
+
         switch (value)
         {
-            case 0:  _ = RunAnalysisAsync(); StartMonitoring();    break;
+            case 0:  _ = RunAnalysisAsync();                       break;
             case 2:  RefreshStartup();                             break;
             case 4:  _ = LoadStorageAsync();                       break;
             case 5:  _ = LoadDriversAsync();                       break;
@@ -171,7 +175,6 @@ public partial class MainViewModel : ObservableObject
             case 10: _ = LoadRestorePointsAsync(); RefreshBsod();  break;
             case 11: _ = RefreshScheduledTasksAsync();             break;
             case 12: _ = RefreshAppsAsync();                       break;
-            default: StopMonitoring();                             break;
         }
     }
 
@@ -196,6 +199,27 @@ public partial class MainViewModel : ObservableObject
     }
 
     public Action<string, string>? ShowToast { get; set; }
+
+    // Écran de victoire (score avant, score après, octets libérés) — affiché après l'optimisation 1 clic.
+    public Action<int, int, long>? ShowVictory { get; set; }
+
+    // ── Bandeau de bienvenue — première session uniquement ──────────────────
+    [ObservableProperty] private bool _showWelcomeBanner = false;
+
+    public void SetFirstLaunch(bool isFirstLaunch) => ShowWelcomeBanner = isFirstLaunch;
+
+    [RelayCommand]
+    private void DismissWelcomeBanner() => ShowWelcomeBanner = false;
+
+    // ── Inviter un ami ──────────────────────────────────────────────────────
+    private const string DiscordInviteLink = "https://discord.gg/YUKQRUj9Qs";
+
+    [RelayCommand]
+    private void CopyReferralMessage()
+    {
+        try { System.Windows.Clipboard.SetText(DiscordInviteLink); ShowToast?.Invoke("Discord", "Lien copié — colle-le à un ami ✓"); }
+        catch (Exception ex) { ShowToast?.Invoke("Discord", $"Erreur : {ex.Message}"); }
+    }
 
     // Détection droits admin (certaines ops — netsh, TRIM, registry — nécessitent admin)
     public bool IsAdmin { get; } = new System.Security.Principal.WindowsPrincipal(
@@ -309,6 +333,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _pcScoreGrade  = "—";
     [ObservableProperty] private System.Windows.Media.Brush _pcScoreBrush =
         new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xA8, 0x99, 0xC4));
+    [ObservableProperty] private System.Windows.Media.Color _pcScoreGlowColor = System.Windows.Media.Color.FromRgb(0xA8, 0x99, 0xC4);
 
     public ObservableCollection<CoreUsageItem> CoreUsages { get; } = [];
     public ObservableCollection<ProcessStat>   TopProcesses { get; } = [];
@@ -371,7 +396,7 @@ public partial class MainViewModel : ObservableObject
             double netKbps  = snap.NetworkDownKBs;
             MonNetPercent   = netKbps <= 0
                 ? 8  // arc minimal visible même à 0 Ko/s (3% = 10° trop petit)
-                : Math.Max(10, Math.Min(100, Math.Log10(netKbps + 1) / Math.Log10(10001) * 100));
+                : Math.Max(10, Math.Min(100, Math.Log10(netKbps + 1) / Math.Log10(125001) * 100)); // saturation ~1000 Mbps (125 000 Ko/s)
             MonNetCenter    = netKbps >= 1024
                 ? $"{netKbps / 1024:F1}M"
                 : $"{netKbps:F0}K";
@@ -456,18 +481,18 @@ public partial class MainViewModel : ObservableObject
     {
         Task.Run(() =>
         {
-            var procs = System.Diagnostics.Process.GetProcesses()
-                .Where(p => { try { return p.WorkingSet64 > 0; } catch { return false; } })
-                .OrderByDescending(p => { try { return p.WorkingSet64; } catch { return 0L; } })
-                .Take(10)
-                .Select(p =>
+            var stats = new List<ProcessStat>();
+            foreach (var p in System.Diagnostics.Process.GetProcesses())
+            {
+                try
                 {
-                    try { return new ProcessStat(p.ProcessName, p.WorkingSet64 / (1024 * 1024), p.Id); }
-                    catch { return null; }
-                })
-                .Where(x => x != null)
-                .Cast<ProcessStat>()
-                .ToList();
+                    if (p.WorkingSet64 > 0)
+                        stats.Add(new ProcessStat(p.ProcessName, p.WorkingSet64 / (1024 * 1024), p.Id));
+                }
+                catch { }
+                finally { p.Dispose(); }
+            }
+            var procs = stats.OrderByDescending(s => s.RamMB).Take(10).ToList();
 
             System.Windows.Application.Current?.Dispatcher.Invoke(() =>
             {
@@ -476,6 +501,14 @@ public partial class MainViewModel : ObservableObject
             });
         });
     }
+
+    [ObservableProperty] private string  _pcScoreRank      = "";
+    [ObservableProperty] private string  _pcScorePercentile = "";
+    private bool _celebratedPerfectScoreThisSession = false;
+
+    // Déclenché la toute première fois que le score atteint A+ (≥90) dans la session — un vrai
+    // easter egg discret, jamais répété, réservé aux PC réellement optimisés.
+    public Action? CelebratePerfectScore { get; set; }
 
     private void UpdatePcScore(int criticals, int warnings)
     {
@@ -496,7 +529,29 @@ public partial class MainViewModel : ObservableObject
             (byte)((hex >> 16) & 0xFF),
             (byte)((hex >> 8)  & 0xFF),
             (byte)(hex         & 0xFF));
-        PcScoreBrush = new System.Windows.Media.SolidColorBrush(c);
+        PcScoreBrush     = new System.Windows.Media.SolidColorBrush(c);
+        PcScoreGlowColor = c;
+
+        // Rang "gamer" + phrase courte : se retient et se répète en 2 secondes en vocal Discord,
+        // contrairement à un score brut sur 100 que personne ne retient. Percentile calibré à la
+        // main sur une grille statique — aucune donnée envoyée ni collectée, cohérent avec l'onglet
+        // Confidentialité de l'app.
+        (PcScoreRank, PcScorePercentile) = score switch
+        {
+            >= 95 => ("IMMORTEL", "Ton PC fait partie du top 1% des configs optimisées."),
+            >= 90 => ("DIAMANT",  "Ton PC est plus rapide que 95% des configs non optimisées."),
+            >= 80 => ("PLATINE",  "Ton PC est plus rapide que 85% des configs non optimisées."),
+            >= 70 => ("OR",       "Ton PC est plus rapide que 70% des configs non optimisées."),
+            >= 55 => ("ARGENT",   "Ton PC est plus rapide que 50% des configs non optimisées."),
+            >= 40 => ("BRONZE",   "Quelques réglages te séparent d'un PC dans la moyenne haute."),
+            _     => ("FER",      "Ton PC a une belle marge de progression — lance une optimisation."),
+        };
+
+        if (score >= 90 && !_celebratedPerfectScoreThisSession)
+        {
+            _celebratedPerfectScoreThisSession = true;
+            CelebratePerfectScore?.Invoke();
+        }
 
         // Advice to improve score
         if (score >= 90)
@@ -600,6 +655,7 @@ public partial class MainViewModel : ObservableObject
         if (IsOneClickBusy) return;
         IsOneClickBusy   = true;
         OneClickBeforeAfter = "";
+        ShowWelcomeBanner = false;
         int scoreBefore  = PcScore;
         long totalFreed  = 0;
 
@@ -611,7 +667,7 @@ public partial class MainViewModel : ObservableObject
 
             OneClickStatus = "Nettoyage en cours…";
             var progress = new Progress<string>();
-            var (_, freed) = await Task.Run(() => _cleaner.Clean(cats, progress));
+            var (_, freed, _) = await Task.Run(() => _cleaner.Clean(cats, progress));
             _cleaner.EmptyRecycleBin();
             totalFreed = freed;
 
@@ -620,7 +676,11 @@ public partial class MainViewModel : ObservableObject
             _optimizer.FlushDns();
 
             OneClickStatus = "TRIM SSD…";
-            await _storage.RunTrimAsync();
+            var winLetter1Click = System.IO.Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows))?.TrimEnd('\\');
+            var winPartition1Click = (await Task.Run(() => _storage.GetPartitions()))
+                .FirstOrDefault(p => string.Equals(p.Letter, winLetter1Click, StringComparison.OrdinalIgnoreCase));
+            if (winPartition1Click == null || winPartition1Click.IsSSD)
+                await _storage.RunTrimAsync();
 
             OneClickStatus = "Libération RAM…";
             await Task.Run(() => _ramOptimizer.OptimizeRam());
@@ -640,6 +700,7 @@ public partial class MainViewModel : ObservableObject
 
             LogAction("Optimisation", "1 clic complet", $"{label} libérés, score {scoreBefore}→{PcScore}");
             ShowToast?.Invoke("Optimisation 1 Clic", $"{label} libérés — Score: {PcScore}/100 ✓");
+            ShowVictory?.Invoke(scoreBefore, PcScore, totalFreed);
         }
         catch (Exception ex) { OneClickStatus = $"Erreur: {ex.Message}"; }
         finally { IsOneClickBusy = false; }
@@ -657,6 +718,14 @@ public partial class MainViewModel : ObservableObject
 
     [RelayCommand]
     private async Task ScanCleanAsync()
+    {
+        if (IsScanning || IsCleaning) return;
+        await ScanCleanCoreAsync();
+    }
+
+    // Logique réelle du scan, séparée du RelayCommand pour pouvoir être appelée depuis
+    // CleanSelectedAsync/EmptyRecycleBin sans se bloquer sur leur propre garde de ré-entrance.
+    private async Task ScanCleanCoreAsync()
     {
         IsScanning  = true;
         CleanStatus = "Analyse en cours…";
@@ -685,31 +754,69 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task CleanSelectedAsync()
     {
+        if (IsScanning || IsCleaning) return;
         IsCleaning  = true;
         CleanStatus = "Nettoyage en cours…";
         try
         {
             var selected = CleanCategories.Where(c => c.IsSelected).Select(c => c.Category).ToList();
             var progress = new Progress<string>(msg => CleanStatus = msg);
-            var (deleted, freed) = await Task.Run(() => _cleaner.Clean(selected, progress));
-            _cleaner.EmptyRecycleBin();
-            CleanStatus = $"Nettoyage terminé. {deleted} fichiers supprimés, {FormatSize(freed)} libérés.";
+            var (deleted, freed, failed) = await Task.Run(() => _cleaner.Clean(selected, progress));
+            var recycleResult = await Task.Run(() => _cleaner.EmptyRecycleBinDetailed());
+
+            await ScanCleanCoreAsync();
+
+            var lockedInfo  = failed > 0
+                ? $" · {failed} fichiers verrouillés ignorés (utilisés par une app ouverte — ferme ton navigateur/Discord et relance le nettoyage pour les libérer)"
+                : "";
+            var recycleInfo = " · " + BuildRecycleShortInfo(recycleResult);
+            CleanStatus = $"Nettoyage terminé : {deleted} fichiers supprimés, {FormatSize(freed)} libérés{lockedInfo}{recycleInfo}. {CleanStatus}";
             LogAction("Nettoyage", $"{deleted} fichiers supprimés", FormatSize(freed));
             ShowToast?.Invoke("Nettoyage", $"{FormatSize(freed)} libérés ✓");
-            await ScanCleanAsync();
         }
         catch (Exception ex) { CleanStatus = $"Erreur: {ex.Message}"; }
         finally { IsCleaning = false; }
     }
 
     [RelayCommand]
-    private void EmptyRecycleBin()
+    private async Task EmptyRecycleBin()
     {
-        if (_cleaner.EmptyRecycleBin())
+        if (IsScanning || IsCleaning) return;
+        IsCleaning  = true;
+        try
         {
-            RecycleSize = 0;
-            ShowToast?.Invoke("Corbeille", "Corbeille vidée ✓");
+            CleanStatus = "Vidage de la corbeille…";
+            var r = await Task.Run(() => _cleaner.EmptyRecycleBinDetailed());
+
+            // Re-scanne le disque plutôt que de croire au succès de l'appel : SHEmptyRecycleBin
+            // peut échouer silencieusement (fichier verrouillé, etc.) sans lever d'exception.
+            await ScanCleanCoreAsync();
+
+            string recycleMsg;
+            if (r.hresult == 0)
+                recycleMsg = "Corbeille vidée ✓.";
+            else if (r.failed == 0 && r.deleted > 0)
+                recycleMsg = $"Corbeille vidée via la méthode de secours ({r.deleted} éléments) ✓ — Windows lui-même avait échoué (code 0x{r.hresult:X8}).";
+            else if (r.failed > 0)
+                recycleMsg = $"Corbeille : {r.deleted} supprimé(s), {r.failed} bloqué(s). Premier blocage : {r.firstError}";
+            else
+                recycleMsg = $"Corbeille non vidée (code 0x{r.hresult:X8}) — aucun élément trouvé à supprimer en secours.";
+            CleanStatus = $"{recycleMsg} {CleanStatus}";
+
+            if (r.ok)
+                ShowToast?.Invoke("Corbeille", "Corbeille vidée ✓");
+            else
+                ShowToast?.Invoke("Corbeille", $"Échec partiel — {FormatSize(RecycleSize)} n'ont pas pu être supprimés");
         }
+        finally { IsCleaning = false; }
+    }
+
+    private static string BuildRecycleShortInfo((bool ok, uint hresult, int deleted, int failed, string? firstError) r)
+    {
+        if (r.hresult == 0) return "corbeille vidée";
+        if (r.failed == 0 && r.deleted > 0) return $"corbeille vidée en secours ({r.deleted} éléments)";
+        if (r.failed > 0) return $"corbeille : {r.failed} élément(s) bloqué(s) — {r.firstError}";
+        return "corbeille déjà vide ou inaccessible";
     }
 
     // ── Caches Jeux ──────────────────────────────────────────────────────────
@@ -719,6 +826,12 @@ public partial class MainViewModel : ObservableObject
 
     [RelayCommand]
     private async Task ScanGameCachesAsync()
+    {
+        if (IsGameCacheBusy) return;
+        await ScanGameCachesCoreAsync();
+    }
+
+    private async Task ScanGameCachesCoreAsync()
     {
         IsGameCacheBusy = true;
         GameCacheStatus = "Scan des caches jeux…";
@@ -740,7 +853,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task CleanGameCacheAsync(GameCache? cache)
     {
-        if (cache == null) return;
+        if (cache == null || IsGameCacheBusy) return;
         IsGameCacheBusy = true;
         GameCacheStatus = $"Nettoyage {cache.Game}…";
         try
@@ -752,7 +865,7 @@ public partial class MainViewModel : ObservableObject
                 : $"{cache.Game} : rien à nettoyer.";
             LogAction("Nettoyage", $"Cache {cache.Game}", FormatSize(freed));
             ShowToast?.Invoke("Cache Jeux", $"{cache.Game}: {FormatSize(freed)} libérés ✓");
-            await ScanGameCachesAsync();
+            await ScanGameCachesCoreAsync();
         }
         catch (Exception ex) { GameCacheStatus = $"Erreur: {ex.Message}"; }
         finally { IsGameCacheBusy = false; }
@@ -761,6 +874,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task CleanAllGameCachesAsync()
     {
+        if (IsGameCacheBusy) return;
         IsGameCacheBusy = true;
         GameCacheStatus = "Nettoyage de tous les caches…";
         try
@@ -774,7 +888,7 @@ public partial class MainViewModel : ObservableObject
                 : "Aucun cache à nettoyer.";
             LogAction("Nettoyage", "Tous les caches jeux", FormatSize(total));
             ShowToast?.Invoke("Caches Jeux", $"Tout nettoyé — {FormatSize(total)} libérés ✓");
-            await ScanGameCachesAsync();
+            await ScanGameCachesCoreAsync();
         }
         catch (Exception ex) { GameCacheStatus = $"Erreur: {ex.Message}"; }
         finally { IsGameCacheBusy = false; }
@@ -805,8 +919,13 @@ public partial class MainViewModel : ObservableObject
     private void ToggleStartupEntry(StartupEntry? entry)
     {
         if (entry == null) return;
-        if (entry.Enabled) _startupMgr.Disable(entry);
-        else               _startupMgr.Enable(entry);
+        bool ok = entry.Enabled ? _startupMgr.Disable(entry) : _startupMgr.Enable(entry);
+        if (!ok)
+        {
+            StartupStatus = $"Échec — droits administrateur requis pour '{entry.DisplayName}' ({entry.Source}).";
+            ShowToast?.Invoke("Démarrage", "Échec — droits administrateur requis");
+            return;
+        }
         RefreshStartup();
     }
 
@@ -845,15 +964,70 @@ public partial class MainViewModel : ObservableObject
         finally { IsNetBusy = false; }
     }
 
+    [ObservableProperty] private string  _bufferbloatStatus = "Mesure la latence au repos puis en pleine charge (téléchargement) — révèle les à-coups de ping en jeu quand une autre appli sature ta connexion.";
+    [ObservableProperty] private bool    _isBufferbloatBusy = false;
+    [ObservableProperty] private BufferbloatResult? _bufferbloatResult;
+
+    // ── Docteur de connexion serveur FiveM ─────────────────────────────────
+    [ObservableProperty] private string _fiveMServerInput = "";
+    [ObservableProperty] private bool   _isFiveMDiagBusy  = false;
+    [ObservableProperty] private string _fiveMStatus = "Colle un code cfx.re/join/xxxxx ou une IP:port du serveur, puis lance le diagnostic.";
+    [ObservableProperty] private string _fiveMVerdict = "";
+    public ObservableCollection<FiveMHopResult> FiveMHops { get; } = [];
+
+    [RelayCommand]
+    private async Task DiagnoseFiveMServerAsync()
+    {
+        if (IsFiveMDiagBusy || string.IsNullOrWhiteSpace(FiveMServerInput)) return;
+        IsFiveMDiagBusy = true;
+        FiveMVerdict = "";
+        FiveMHops.Clear();
+        try
+        {
+            var progress = new Progress<string>(msg => FiveMStatus = msg);
+            var result = await _fivemDoctor.DiagnoseAsync(FiveMServerInput, progress);
+            foreach (var h in result.Hops) FiveMHops.Add(h);
+            FiveMVerdict = result.Verdict;
+            FiveMStatus  = result.Success
+                ? $"Diagnostic terminé — cible : {result.ResolvedTarget}"
+                : "Diagnostic incomplet.";
+            LogAction("Réseau", "Diagnostic serveur FiveM", result.Success ? "terminé" : "échec résolution");
+        }
+        catch (Exception ex) { FiveMStatus = $"Erreur : {ex.Message}"; }
+        finally { IsFiveMDiagBusy = false; }
+    }
+
+    [RelayCommand]
+    private async Task TestBufferbloatAsync()
+    {
+        if (IsBufferbloatBusy) return;
+        IsBufferbloatBusy = true;
+        BufferbloatResult = null;
+        try
+        {
+            var progress = new Progress<string>(msg => BufferbloatStatus = msg);
+            var r = await _speedTest.MeasureBufferbloatAsync(progress);
+            BufferbloatResult = r;
+            BufferbloatStatus = r.Grade == "?"
+                ? r.GradeLabel
+                : $"Note {r.Grade} — au repos {r.IdleLabel}, en charge {r.LoadedLabel} ({r.IncreaseLabel}). {r.GradeLabel}";
+            LogAction("Réseau", "Test latence sous charge", $"Note {r.Grade} ({r.IncreaseLabel})");
+        }
+        catch (Exception ex) { BufferbloatStatus = $"Erreur: {ex.Message}"; }
+        finally { IsBufferbloatBusy = false; }
+    }
+
     [RelayCommand]
     private async Task OptimizeTcpAsync()
     {
         IsNetBusy    = true;
         NetOptStatus = "Optimisation TCP/IP en cours…";
-        await Task.Run(() => _optimizer.OptimizeTcp());
-        NetOptStatus = "TCP/IP optimisé — paramètres réseau améliorés pour réduire la latence ✓";
-        LogAction("Réseau", "TCP/IP optimisé", "Latence réduite");
-        ShowToast?.Invoke("Réseau", "TCP/IP optimisé ✓");
+        bool ok = await Task.Run(() => _optimizer.OptimizeTcp());
+        NetOptStatus = ok
+            ? "TCP/IP optimisé — paramètres réseau améliorés pour réduire la latence ✓"
+            : "Échec de l'optimisation TCP/IP — droits administrateur requis.";
+        if (ok) LogAction("Réseau", "TCP/IP optimisé", "Latence réduite");
+        ShowToast?.Invoke("Réseau", ok ? "TCP/IP optimisé ✓" : "Échec — admin requis");
         IsNetBusy = false;
     }
 
@@ -888,7 +1062,7 @@ public partial class MainViewModel : ObservableObject
             foreach (var r in results) DnsResults.Add(r);
             var best = results.FirstOrDefault(r => r.Available);
             DnsTestStatus = best != null
-                ? $"Le plus rapide : {best.Server.Name} ({best.PingMs} ms) — cliquez Appliquer pour l'utiliser."
+                ? $"Latence la plus basse : {best.Server.Name} ({best.PingMs} ms de ping) — cliquez Appliquer pour l'utiliser."
                 : "Aucun serveur DNS disponible — vérifiez votre connexion.";
         }
         catch (Exception ex) { DnsTestStatus = $"Erreur: {ex.Message}"; }
@@ -908,6 +1082,7 @@ public partial class MainViewModel : ObservableObject
         AppliedDns = ok ? result.Server.Name : "";
         if (ok) LogAction("Réseau", $"DNS {result.Server.Name}", $"{result.Server.Primary} appliqué");
         ShowToast?.Invoke("DNS", ok ? $"{result.Server.Name} appliqué ✓" : "Erreur — admin requis");
+        OnPropertyChanged(nameof(CanRestorePreviousDns));
         IsDnsBusy = false;
     }
 
@@ -919,6 +1094,19 @@ public partial class MainViewModel : ObservableObject
         bool ok = await _dnsTest.ResetDnsAsync();
         DnsTestStatus = ok ? "DNS remis en automatique ✓" : "Erreur lors de la remise en auto.";
         AppliedDns = "";
+        IsDnsBusy = false;
+    }
+
+    public bool CanRestorePreviousDns => _dnsTest.HasPreviousDns;
+
+    [RelayCommand]
+    private async Task RestorePreviousDnsAsync()
+    {
+        IsDnsBusy = true;
+        DnsTestStatus = "Restauration de votre configuration DNS d'origine…";
+        bool ok = await _dnsTest.RestorePreviousDnsAsync();
+        DnsTestStatus = ok ? "Configuration DNS d'origine restaurée ✓" : "Erreur lors de la restauration.";
+        if (ok) AppliedDns = "";
         IsDnsBusy = false;
     }
 
@@ -1071,7 +1259,9 @@ public partial class MainViewModel : ObservableObject
             var progress = new Progress<string>(msg => RepairLog += msg + "\n");
             var result   = await _repair.RunSfcAsync(progress);
             RepairLog   += "\n" + result;
-            ShowToast?.Invoke("SFC", "Vérification système terminée ✓");
+            ShowToast?.Invoke("SFC", result.Contains("[ÉCHEC")
+                ? "Échec de la vérification — voir le journal"
+                : "Vérification système terminée ✓");
         }
         catch (Exception ex) { RepairLog += $"\nErreur: {ex.Message}"; }
         finally { IsRepairing = false; }
@@ -1087,7 +1277,9 @@ public partial class MainViewModel : ObservableObject
             var progress = new Progress<string>(msg => RepairLog += msg + "\n");
             var result   = await _repair.RunDismRestoreHealthAsync(progress);
             RepairLog   += "\n" + result;
-            ShowToast?.Invoke("DISM", "Réparation Windows terminée ✓");
+            ShowToast?.Invoke("DISM", result.Contains("[ÉCHEC")
+                ? "Échec de la réparation — voir le journal"
+                : "Réparation Windows terminée ✓");
         }
         catch (Exception ex) { RepairLog += $"\nErreur: {ex.Message}"; }
         finally { IsRepairing = false; }
@@ -1103,7 +1295,9 @@ public partial class MainViewModel : ObservableObject
             var progress = new Progress<string>(msg => RepairLog += msg + "\n");
             var result   = await _repair.ResetNetworkAsync(progress);
             RepairLog   += "\n" + result;
-            ShowToast?.Invoke("Réseau", "Stack réseau réinitialisée ✓");
+            ShowToast?.Invoke("Réseau", result.Contains("[ÉCHEC")
+                ? "Échec de la réinitialisation — voir le journal"
+                : "Stack réseau réinitialisée ✓");
         }
         catch (Exception ex) { RepairLog += $"\nErreur: {ex.Message}"; }
         finally { IsRepairing = false; }
@@ -1119,7 +1313,9 @@ public partial class MainViewModel : ObservableObject
             var progress = new Progress<string>(msg => RepairLog += msg + "\n");
             var result   = await _repair.RepairWindowsUpdateAsync(progress);
             RepairLog   += "\n" + result;
-            ShowToast?.Invoke("Windows Update", "Réparation terminée ✓");
+            ShowToast?.Invoke("Windows Update", result.Contains("[ÉCHEC")
+                ? "Échec de la réparation — voir le journal"
+                : "Réparation terminée ✓");
         }
         catch (Exception ex) { RepairLog += $"\nErreur: {ex.Message}"; }
         finally { IsRepairing = false; }
@@ -1165,6 +1361,15 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task RunTrimAsync()
     {
+        var winLetter = System.IO.Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows))?.TrimEnd('\\');
+        var winPartition = Partitions.FirstOrDefault(p => string.Equals(p.Letter, winLetter, StringComparison.OrdinalIgnoreCase));
+        if (winPartition != null && !winPartition.IsSSD)
+        {
+            StorageStatus = "Aucun SSD détecté sur le lecteur système — TRIM non applicable (HDD).";
+            ShowToast?.Invoke("Stockage", "TRIM non applicable — disque système détecté comme HDD");
+            return;
+        }
+
         IsStorageBusy = true;
         StorageStatus = "Exécution du TRIM SSD…";
         bool ok = await _storage.RunTrimAsync();
@@ -1328,6 +1533,7 @@ public partial class MainViewModel : ObservableObject
                 await Task.Run(() => _optimizer.SetHighPerfPlan(true));
                 TwHighPerfPlan = true;
                 ShowToast?.Invoke("Problèmes réglés", "Plan Haute Performance activé ✓");
+                IsDiagBusy = false; // sinon le garde-fou de re-entrance de RunDiagnosticsAsync l'annule aussitôt
                 await RunDiagnosticsAsync();
                 break;
             case "game_dvr":
@@ -1335,6 +1541,7 @@ public partial class MainViewModel : ObservableObject
                 await Task.Run(() => _optimizer.SetGameDvr(true));
                 TwGameDvr = true;
                 ShowToast?.Invoke("Problèmes réglés", "Xbox Game DVR désactivé ✓");
+                IsDiagBusy = false;
                 await RunDiagnosticsAsync();
                 break;
             case "net_throttle":
@@ -1342,6 +1549,7 @@ public partial class MainViewModel : ObservableObject
                 await Task.Run(() => _optimizer.SetNetworkThrottling(true));
                 TwNetThrottle = true;
                 ShowToast?.Invoke("Problèmes réglés", "Network Throttling désactivé ✓");
+                IsDiagBusy = false;
                 await RunDiagnosticsAsync();
                 break;
             case "windows_update":
@@ -1365,6 +1573,14 @@ public partial class MainViewModel : ObservableObject
                 break;
             case "event_viewer":
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("eventvwr.msc") { UseShellExecute = true });
+                break;
+            case "reapply_drift":
+                IsDiagBusy = true;
+                await Task.Run(() => _optimizer.ApplyGamingProfile());
+                LoadTweakStates();
+                ShowToast?.Invoke("Problèmes réglés", "Profil Gaming réappliqué ✓");
+                IsDiagBusy = false;
+                await RunDiagnosticsAsync();
                 break;
         }
     }
@@ -1619,6 +1835,10 @@ public partial class MainViewModel : ObservableObject
         if (!IsTurboActive)
         {
             TurboSummary = "Activation…";
+            // Capturé AVANT SetUltimatePerfPlan(true) : sinon ToggleGameBoost() ci-dessous capture
+            // le plan Ultimate qu'on vient d'appliquer au lieu du vrai plan d'origine de l'utilisateur,
+            // et "Désactiver Turbo" ne restaure alors jamais le bon plan.
+            var originalPlanGuid = _optimizer.GetActivePowerPlanGuid();
             await Task.Run(() =>
             {
                 _optimizer.ApplyGamingProfile();
@@ -1627,6 +1847,7 @@ public partial class MainViewModel : ObservableObject
             });
             LoadTweakStates();
             if (!IsBoostActive) ToggleGameBoost();
+            _previousPowerPlanGuid = originalPlanGuid;
             IsTurboActive = true;
             TurboSummary  = "TURBO ACTIF — Plan Ultimate, services optimisés, Game Booster ON, profil Gaming.";
             ShowToast?.Invoke("Mode Turbo", "Performances maximales activées ✓");
@@ -1701,11 +1922,11 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _twCortana       = false;
     [ObservableProperty] private bool _twVisualEffects = false;
 
-    [RelayCommand] private void ToggleTelemetry()     { _optimizer.SetTelemetry(!TwTelemetry);              TwTelemetry     = !TwTelemetry;     Toast("Télémétrie");    }
-    [RelayCommand] private void ToggleAdvertisingId() { _optimizer.SetAdvertisingId(!TwAdvertisingId);      TwAdvertisingId = !TwAdvertisingId; Toast("ID publicitaire"); }
-    [RelayCommand] private void ToggleLocation()      { _optimizer.SetLocation(!TwLocation);                TwLocation      = !TwLocation;      Toast("Localisation");  }
-    [RelayCommand] private void ToggleCortana()       { _optimizer.SetCortana(!TwCortana);                  TwCortana       = !TwCortana;       Toast("Cortana");       }
-    [RelayCommand] private void ToggleVisualEffects() { _optimizer.SetVisualEffects(!TwVisualEffects);      TwVisualEffects = !TwVisualEffects; Toast("Effets visuels"); }
+    [RelayCommand] private void ToggleTelemetry()     { if (_optimizer.SetTelemetry(!TwTelemetry))         { TwTelemetry     = !TwTelemetry;     Toast("Télémétrie");      } else ToastFail("Télémétrie");      }
+    [RelayCommand] private void ToggleAdvertisingId() { if (_optimizer.SetAdvertisingId(!TwAdvertisingId)) { TwAdvertisingId = !TwAdvertisingId; Toast("ID publicitaire"); } else ToastFail("ID publicitaire"); }
+    [RelayCommand] private void ToggleLocation()      { if (_optimizer.SetLocation(!TwLocation))           { TwLocation      = !TwLocation;      Toast("Localisation");   } else ToastFail("Localisation");   }
+    [RelayCommand] private void ToggleCortana()       { if (_optimizer.SetCortana(!TwCortana))             { TwCortana       = !TwCortana;       Toast("Cortana");        } else ToastFail("Cortana");        }
+    [RelayCommand] private void ToggleVisualEffects() { if (_optimizer.SetVisualEffects(!TwVisualEffects)) { TwVisualEffects = !TwVisualEffects; Toast("Effets visuels"); } else ToastFail("Effets visuels"); }
 
     // ══════════════════════════════════════════════════════════════════════════
     // TAB 12 — SÉCURITÉ & RESTAURATION
@@ -1733,6 +1954,11 @@ public partial class MainViewModel : ObservableObject
     private async Task DeleteRestorePointAsync(RestorePointEntry? entry)
     {
         if (entry == null) return;
+        var confirm = System.Windows.MessageBox.Show(
+            $"Supprimer définitivement le point de restauration #{entry.SequenceNumber} ({entry.Description}) ?\n\nCette action est irréversible.",
+            "Confirmer la suppression", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning);
+        if (confirm != System.Windows.MessageBoxResult.Yes) return;
+
         IsSecurityBusy = true;
         SecurityStatus = $"Suppression du point #{entry.SequenceNumber}…";
         bool ok = await _restore.DeleteRestorePointAsync(entry.SequenceNumber);
@@ -1762,7 +1988,7 @@ public partial class MainViewModel : ObservableObject
         SecurityStatus = "Vérification de la protection système…";
         try
         {
-            var result = await _restore.CreateRestorePointAsync("EKIPPP-OPTIMIZER — sauvegarde avant optimisation");
+            var result = await _restore.CreateRestorePointAsync("EKIPPP-OPTIMISATEUR — sauvegarde avant optimisation");
             SecurityStatus = result.Message;
             if (result.Success)
             {
@@ -1834,13 +2060,13 @@ public partial class MainViewModel : ObservableObject
                 k.DeleteValue("EKIPPP-OPTIMIZER", throwOnMissingValue: false);
                 IsAutoStartEnabled = false;
                 AutomationStatus   = "Démarrage automatique désactivé.";
-                ShowToast?.Invoke("Démarrage auto", "EKIPPP-OPTIMIZER ne se lancera plus au démarrage");
+                ShowToast?.Invoke("Démarrage auto", "EKIPPP-OPTIMISATEUR ne se lancera plus au démarrage");
             }
             else
             {
-                k.SetValue("EKIPPP-OPTIMIZER", $"\"{exePath}\"");
+                k.SetValue("EKIPPP-OPTIMIZER", $"\"{exePath}\" --minimized");
                 IsAutoStartEnabled = true;
-                AutomationStatus   = "EKIPPP-OPTIMIZER se lancera automatiquement au démarrage Windows ✓";
+                AutomationStatus   = "EKIPPP-OPTIMISATEUR se lancera automatiquement au démarrage Windows ✓";
                 ShowToast?.Invoke("Démarrage auto", "Démarrage automatique activé ✓");
             }
         }
@@ -1917,10 +2143,12 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<BrowserProfile> Browsers { get; } = [];
     [ObservableProperty] private string _browserStatus  = "Scannez pour voir vos navigateurs et l'espace récupérable.";
     [ObservableProperty] private bool   _isBrowserBusy  = false;
+    private int _browserScanGeneration = 0;
 
     [RelayCommand]
     private async Task ScanBrowsersAsync()
     {
+        int myGen = ++_browserScanGeneration;
         IsBrowserBusy = true;
         BrowserStatus = "Détection des navigateurs…";
         Browsers.Clear();
@@ -1928,6 +2156,7 @@ public partial class MainViewModel : ObservableObject
         {
             // Détection instantanée (< 10 ms) — aucun calcul de taille
             var profiles = await Task.Run(() => _browserCleaner.ScanAll());
+            if (myGen != _browserScanGeneration) return; // un scan plus récent a démarré entre-temps
 
             if (profiles.Count == 0)
             {
@@ -1938,44 +2167,60 @@ public partial class MainViewModel : ObservableObject
             foreach (var p in profiles) Browsers.Add(p);
             BrowserStatus = $"{profiles.Count} navigateur(s) détecté(s) — calcul des tailles en cours…";
 
-            // Calcul des tailles en arrière-plan, sans bloquer l'UI
-            _ = Task.Run(() =>
+            // Calcul des tailles en arrière-plan, mais on attend la fin avant de relâcher IsBrowserBusy
+            // pour ne pas permettre à un second scan de démarrer pendant que celui-ci écrit encore
+            // dans Browsers (état affiché corrompu sinon).
+            await Task.Run(() =>
             {
                 long total = 0;
                 for (int i = 0; i < profiles.Count; i++)
                 {
+                    if (myGen != _browserScanGeneration) return;
                     var (cache, cookies, history) = _browserCleaner.MeasureSizes(profiles[i]);
                     total += cache + cookies + history;
                     var updated = profiles[i] with { CacheBytes = cache, CookiesBytes = cookies, HistoryBytes = history };
                     int idx = i;
                     System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
                     {
-                        if (idx < Browsers.Count) Browsers[idx] = updated;
+                        if (myGen == _browserScanGeneration && idx < Browsers.Count) Browsers[idx] = updated;
                     });
                 }
-                System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
-                    BrowserStatus = $"{profiles.Count} navigateur(s) · {FormatSize(total)} récupérables");
+                if (myGen == _browserScanGeneration)
+                    System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+                        BrowserStatus = $"{profiles.Count} navigateur(s) · {FormatSize(total)} récupérables");
             });
         }
         catch (Exception ex) { BrowserStatus = $"Erreur : {ex.Message}"; }
-        finally { IsBrowserBusy = false; }
+        finally { if (myGen == _browserScanGeneration) IsBrowserBusy = false; }
     }
 
     [RelayCommand]
     private async Task CleanBrowserCacheAsync(BrowserProfile? profile)
     {
         if (profile == null) return;
+        bool wasRunning = _browserCleaner.IsBrowserRunning(profile);
+
         IsBrowserBusy = true;
         BrowserStatus = $"Nettoyage cache {profile.Browser}…";
         try
         {
             var prog   = new Progress<string>(msg => BrowserStatus = msg);
             long freed = await _browserCleaner.CleanCacheAsync(profile, prog);
-            BrowserStatus = freed > 0
-                ? $"{profile.Browser} — {FormatSize(freed)} libérés (cache) ✓"
-                : $"{profile.Browser} : cache déjà vide.";
-            if (freed > 0) LogAction("Nettoyage", $"Cache {profile.Browser}", FormatSize(freed));
-            ShowToast?.Invoke("Navigateurs", $"{profile.Browser}: {FormatSize(freed)} libérés ✓");
+            if (freed > 0)
+            {
+                BrowserStatus = $"{profile.Browser} — {FormatSize(freed)} libérés (cache) ✓";
+                LogAction("Nettoyage", $"Cache {profile.Browser}", FormatSize(freed));
+                ShowToast?.Invoke("Navigateurs", $"{profile.Browser}: {FormatSize(freed)} libérés ✓");
+            }
+            else if (wasRunning)
+            {
+                BrowserStatus = $"{profile.Browser} : impossible de nettoyer — fermez-le d'abord (fichiers verrouillés).";
+                ShowToast?.Invoke("Navigateurs", $"{profile.Browser} : fermez le navigateur pour pouvoir le nettoyer");
+            }
+            else
+            {
+                BrowserStatus = $"{profile.Browser} : cache déjà vide.";
+            }
             await ScanBrowsersAsync();
         }
         catch (Exception ex) { BrowserStatus = $"Erreur: {ex.Message}"; }
@@ -1986,17 +2231,43 @@ public partial class MainViewModel : ObservableObject
     private async Task CleanBrowserAllAsync(BrowserProfile? profile)
     {
         if (profile == null) return;
+        var owner = System.Windows.Application.Current?.MainWindow;
+
+        var confirm = System.Windows.MessageBox.Show(owner,
+            $"Supprimer le cache, les cookies ET l'historique de {profile.Browser} ?\n\nVous serez déconnecté(e) de tous les sites (mails, réseaux sociaux, etc.). Cette action est irréversible.",
+            "Confirmer le nettoyage complet", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning);
+        if (confirm != System.Windows.MessageBoxResult.Yes) return;
+
+        bool wasRunning = _browserCleaner.IsBrowserRunning(profile);
+        if (wasRunning)
+        {
+            var proceedAnyway = System.Windows.MessageBox.Show(owner,
+                $"{profile.Browser} est actuellement ouvert — certains fichiers verrouillés ne pourront pas être supprimés tant qu'il tourne.\n\nFermer {profile.Browser} avant de continuer est recommandé. Continuer quand même ?",
+                "Navigateur ouvert", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning);
+            if (proceedAnyway != System.Windows.MessageBoxResult.Yes) return;
+        }
+
         IsBrowserBusy = true;
         BrowserStatus = $"Nettoyage complet {profile.Browser} (cache + cookies + historique)…";
         try
         {
             var prog   = new Progress<string>(msg => BrowserStatus = msg);
             long freed = await _browserCleaner.CleanAllAsync(profile, prog);
-            BrowserStatus = freed > 0
-                ? $"{profile.Browser} — {FormatSize(freed)} libérés (cache + cookies + historique) ✓"
-                : $"{profile.Browser} : rien à nettoyer.";
-            if (freed > 0) LogAction("Nettoyage", $"Complet {profile.Browser}", FormatSize(freed));
-            ShowToast?.Invoke("Navigateurs", $"{profile.Browser} nettoyé — {FormatSize(freed)} libérés ✓");
+            if (freed > 0)
+            {
+                BrowserStatus = $"{profile.Browser} — {FormatSize(freed)} libérés (cache + cookies + historique) ✓";
+                LogAction("Nettoyage", $"Complet {profile.Browser}", FormatSize(freed));
+                ShowToast?.Invoke("Navigateurs", $"{profile.Browser} nettoyé — {FormatSize(freed)} libérés ✓");
+            }
+            else if (wasRunning)
+            {
+                BrowserStatus = $"{profile.Browser} : impossible de nettoyer — fermez-le d'abord (fichiers verrouillés).";
+                ShowToast?.Invoke("Navigateurs", $"{profile.Browser} : fermez le navigateur pour pouvoir le nettoyer");
+            }
+            else
+            {
+                BrowserStatus = $"{profile.Browser} : rien à nettoyer.";
+            }
             await ScanBrowsersAsync();
         }
         catch (Exception ex) { BrowserStatus = $"Erreur: {ex.Message}"; }
@@ -2048,6 +2319,11 @@ public partial class MainViewModel : ObservableObject
     private async Task UninstallAppAsync(InstalledApp? app)
     {
         if (app == null) return;
+        var confirm = System.Windows.MessageBox.Show(
+            $"Désinstaller {app.Name} ?",
+            "Confirmer la désinstallation", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning);
+        if (confirm != System.Windows.MessageBoxResult.Yes) return;
+
         IsUninstallerBusy = true;
         UninstallerStatus = $"Désinstallation de {app.Name}…";
         bool ok = await _uninstaller.UninstallAsync(app);
@@ -2102,7 +2378,7 @@ public partial class MainViewModel : ObservableObject
             {
                 UpdateBanner = $"Mise à jour disponible : v{latest} — téléchargez sur ekippp.fr";
                 HasUpdate    = true;
-                ShowToast?.Invoke("Mise à jour", $"EKIPPP Optimizer v{latest} est disponible !");
+                ShowToast?.Invoke("Mise à jour", $"EKIPPP Optimisateur v{latest} est disponible !");
             }
         }
         catch { }
@@ -2131,7 +2407,7 @@ public partial class MainViewModel : ObservableObject
 
             var html = $@"<!DOCTYPE html>
 <html lang='fr'>
-<head><meta charset='UTF-8'><title>Rapport EKIPPP Optimizer</title>
+<head><meta charset='UTF-8'><title>Rapport EKIPPP Optimisateur</title>
 <style>
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{font-family:'Segoe UI',Arial,sans-serif;background:#0F0A18;color:#D4C6F0;padding:32px}}
@@ -2147,7 +2423,7 @@ td{{padding:6px 8px;font-size:13px;border-bottom:1px solid #1E1232;color:#C2B5E0
 .ok{{color:#22C55E}}
 </style></head>
 <body>
-<h1>EKIPPP OPTIMIZER — Rapport Système</h1>
+<h1>EKIPPP OPTIMISATEUR — Rapport Système</h1>
 <p class='sub'>Généré le {DateTime.Now:dd/MM/yyyy à HH:mm:ss}</p>
 <div class='grid'>
   <div class='card'>
@@ -2187,7 +2463,7 @@ td{{padding:6px 8px;font-size:13px;border-bottom:1px solid #1E1232;color:#C2B5E0
   {(History.Count == 0 ? "<p style='color:#7C6A9C'>Aucune action enregistrée dans cette session.</p>" : $@"
   <table><tr><th>Date</th><th>Catégorie</th><th>Action</th><th>Résultat</th></tr>{string.Join("", history)}</table>")}
 </div>
-<div style='text-align:center;color:#2D1F45;font-size:11px;margin-top:24px'>EKIPPP OPTIMIZER — ekippp.fr</div>
+<div style='text-align:center;color:#2D1F45;font-size:11px;margin-top:24px'>EKIPPP OPTIMISATEUR — ekippp.fr</div>
 </body></html>";
 
             var desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
@@ -2204,10 +2480,19 @@ td{{padding:6px 8px;font-size:13px;border-bottom:1px solid #1E1232;color:#C2B5E0
     // ══════════════════════════════════════════════════════════════════════════
     public MainViewModel()
     {
+        _diagnostics = new DiagnosticsService(_optimizer);
         LoadTweakStates();
         LoadPersistedSnapshot();
         RestorePersistedProfile();
         LoadAutoStartState();
+        // Le Mode Turbo était actif à la fermeture précédente (fermeture normale ou crash) et les
+        // services Windows qu'il a arrêtés (SysMain, WSearch…) le sont peut-être toujours — on
+        // reflète cet état réel au lieu d'afficher "Désactivé" alors que rien n'a été restauré.
+        if (_serviceOptimizer.IsOptimized)
+        {
+            IsTurboActive = true;
+            TurboSummary  = "TURBO ACTIF (restauré depuis la session précédente) — cliquez pour désactiver et restaurer les services Windows.";
+        }
         AppliedDns = _dnsTest.GetCurrentDnsName(); // lit depuis l'adaptateur réseau, pas depuis un cache
         LoadHistory();
         LoadWeeklyScore();
@@ -2272,7 +2557,8 @@ td{{padding:6px 8px;font-size:13px;border-bottom:1px solid #1E1232;color:#C2B5E0
         catch { }
     }
 
-    private void Toast(string name) => ShowToast?.Invoke("EKIPPP Optimizer", $"{name} mis à jour ✓");
+    private void Toast(string name) => ShowToast?.Invoke("EKIPPP Optimisateur", $"{name} mis à jour ✓");
+    private void ToastFail(string name) => ShowToast?.Invoke("EKIPPP Optimisateur", $"{name} — échec (droits administrateur requis)");
 
     private static string FormatSize(long bytes) => SizeFormatter.Format(bytes);
 }

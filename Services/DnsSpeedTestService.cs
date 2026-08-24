@@ -60,6 +60,11 @@ public class DnsSpeedTestService
         return new DnsResult(srv, (long)times.Average(), true);
     }
 
+    // DNS d'origine par adaptateur, capturé avant la toute première application depuis l'app —
+    // permet un vrai retour à la config personnelle de l'utilisateur (pas juste "forcer le DHCP").
+    private readonly Dictionary<string, List<string>> _previousDns = new(StringComparer.OrdinalIgnoreCase);
+    public bool HasPreviousDns => _previousDns.Count > 0;
+
     public async Task<bool> ApplyDnsAsync(DnsResult result)
     {
         return await Task.Run(() =>
@@ -67,13 +72,18 @@ public class DnsSpeedTestService
             try
             {
                 var adapters = GetActiveAdapters();
+                if (adapters.Count == 0) return false;
+
+                CaptureCurrentDnsIfNeeded(adapters);
+
+                bool allOk = true;
                 foreach (var a in adapters)
                 {
-                    Run("netsh", $"interface ip set dns \"{a}\" static {result.Server.Primary} primary");
+                    allOk &= Run("netsh", $"interface ip set dns \"{a}\" static {result.Server.Primary} primary");
                     if (!string.IsNullOrEmpty(result.Server.Secondary))
-                        Run("netsh", $"interface ip add dns \"{a}\" {result.Server.Secondary} index=2");
+                        allOk &= Run("netsh", $"interface ip add dns \"{a}\" {result.Server.Secondary} index=2");
                 }
-                return adapters.Count > 0;
+                return allOk;
             }
             catch { return false; }
         });
@@ -85,12 +95,59 @@ public class DnsSpeedTestService
         {
             try
             {
+                bool allOk = true;
                 foreach (var a in GetActiveAdapters())
-                    Run("netsh", $"interface ip set dns \"{a}\" dhcp");
-                return true;
+                    allOk &= Run("netsh", $"interface ip set dns \"{a}\" dhcp");
+                return allOk;
             }
             catch { return false; }
         });
+    }
+
+    // Réapplique le DNS statique/DHCP exact que l'adaptateur avait avant la première
+    // modification faite par l'app dans cette session (plutôt que de forcer le DHCP à l'aveugle).
+    public async Task<bool> RestorePreviousDnsAsync()
+    {
+        if (_previousDns.Count == 0) return false;
+        return await Task.Run(() =>
+        {
+            try
+            {
+                bool allOk = true;
+                foreach (var (adapter, dns) in _previousDns)
+                {
+                    if (dns.Count == 0)
+                    {
+                        allOk &= Run("netsh", $"interface ip set dns \"{adapter}\" dhcp");
+                        continue;
+                    }
+                    allOk &= Run("netsh", $"interface ip set dns \"{adapter}\" static {dns[0]} primary");
+                    if (dns.Count > 1)
+                        allOk &= Run("netsh", $"interface ip add dns \"{adapter}\" {dns[1]} index=2");
+                }
+                return allOk;
+            }
+            catch { return false; }
+        });
+    }
+
+    private void CaptureCurrentDnsIfNeeded(List<string> adapters)
+    {
+        foreach (var a in adapters)
+        {
+            if (_previousDns.ContainsKey(a)) continue;
+            try
+            {
+                var ni = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                    .FirstOrDefault(n => n.Name == a);
+                var dns = ni?.GetIPProperties().DnsAddresses
+                    .Where(ip => ip.AddressFamily == AddressFamily.InterNetwork)
+                    .Select(ip => ip.ToString())
+                    .ToList() ?? [];
+                _previousDns[a] = dns;
+            }
+            catch { _previousDns[a] = []; }
+        }
     }
 
     // Lit le DNS actuellement configuré sur l'adaptateur actif et retourne le nom du serveur connu
@@ -131,10 +188,12 @@ public class DnsSpeedTestService
         return list;
     }
 
-    private static void Run(string exe, string args)
+    private static bool Run(string exe, string args)
     {
         using var p = Process.Start(new ProcessStartInfo(exe, args)
             { UseShellExecute = false, CreateNoWindow = true });
-        p?.WaitForExit(5000);
+        if (p == null) return false;
+        p.WaitForExit(5000);
+        return p.HasExited && p.ExitCode == 0;
     }
 }

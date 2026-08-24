@@ -11,6 +11,19 @@ public class InvertBoolConverter : IValueConverter
     public object ConvertBack(object v, Type t, object p, CultureInfo c) => v is bool b && !b;
 }
 
+public class IsNegativeConverter : IValueConverter
+{
+    public static readonly IsNegativeConverter Instance = new();
+    public object Convert(object v, Type t, object p, CultureInfo c) => v switch
+    {
+        int i    => i < 0,
+        double d => d < 0,
+        long l   => l < 0,
+        _        => false
+    };
+    public object ConvertBack(object v, Type t, object p, CultureInfo c) => DependencyProperty.UnsetValue;
+}
+
 public class SizeConverter : IValueConverter
 {
     public static readonly SizeConverter Instance = new();

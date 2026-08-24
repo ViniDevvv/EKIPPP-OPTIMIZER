@@ -54,15 +54,15 @@ public class GameBoosterService
 
     // ── Overlays à killer pour booster ──────────────────────────────────────
     // "Discord" (app complète) exclue volontairement pour préserver le vocal — seul DiscordOverlayHost est ciblé.
+    // EpicGamesLauncher/Origin/EADesktop/GalaxyClient exclus : ce sont les launchers complets des jeux
+    // (pas de simples overlays) — beaucoup de jeux Epic/EA ont besoin du launcher ouvert en fond pour
+    // l'authentification/DRM pendant la partie ; les tuer peut faire planter ou déconnecter le jeu en cours.
     private static readonly string[] OverlayProcesses =
     [
         "DiscordOverlayHost",
         "GameBarFTServer", "GameBar",
         "SearchUI", "SearchApp",
         "XboxApp", "XboxGameBarWidgets",
-        "EpicGamesLauncher",
-        "Origin", "EADesktop",
-        "GalaxyClient",
         "NvNodeLauncher", "nvcontainer",
         "GeForceExperience",
         "RadeonSoftware", "CNext", "cnext",

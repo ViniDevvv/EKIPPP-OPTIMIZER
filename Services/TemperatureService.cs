@@ -62,16 +62,25 @@ public class TemperatureService : IDisposable
                 }
                 else if (hw.HardwareType is HardwareType.GpuNvidia or HardwareType.GpuAmd or HardwareType.GpuIntel)
                 {
+                    double thisLoad = 0, thisVramUsed = 0, thisVramTotal = 0;
                     foreach (var s in hw.Sensors)
                     {
                         if (s.SensorType == SensorType.Temperature) gpuTemp = Math.Max(gpuTemp, s.Value ?? 0);
                         if (s.SensorType == SensorType.Fan)         gpuFan  = Math.Max(gpuFan,  s.Value ?? 0);
                         if (s.SensorType == SensorType.Load && s.Name.Contains("Core", StringComparison.OrdinalIgnoreCase))
-                            gpuLoad = s.Value ?? 0;
+                            thisLoad = s.Value ?? 0;
                         if (s.SensorType == SensorType.SmallData && s.Name.Contains("Memory Used", StringComparison.OrdinalIgnoreCase))
-                            gpuVramUsed = s.Value ?? 0;
+                            thisVramUsed = s.Value ?? 0;
                         if (s.SensorType == SensorType.SmallData && s.Name.Contains("Memory Total", StringComparison.OrdinalIgnoreCase))
-                            gpuVramTotal = s.Value ?? 0;
+                            thisVramTotal = s.Value ?? 0;
+                    }
+                    // Sur un PC multi-GPU (iGPU + dGPU), ne retenir que le GPU le plus chargé
+                    // plutôt que d'écraser avec le dernier énuméré (souvent l'iGPU inactif).
+                    if (thisLoad >= gpuLoad)
+                    {
+                        gpuLoad      = thisLoad;
+                        gpuVramUsed  = thisVramUsed;
+                        gpuVramTotal = thisVramTotal;
                     }
                 }
             }

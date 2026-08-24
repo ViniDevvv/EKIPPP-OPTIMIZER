@@ -4,7 +4,7 @@
         xmlns:vm="clr-namespace:EkipppOptimizer.ViewModels"
         xmlns:svc="clr-namespace:EkipppOptimizer.Services"
         xmlns:local="clr-namespace:EkipppOptimizer"
-        Title="EKIPPP OPTIMIZER"
+        Title="EKIPPP OPTIMISATEUR"
         Width="1260" Height="820"
         MinWidth="1000" MinHeight="700"
         WindowStartupLocation="CenterScreen"
@@ -23,7 +23,10 @@
     </Window.DataContext>
 
     <Window.Resources>
-        <SolidColorBrush x:Key="BgMain"      Color="#0F0A18"/>
+        <RadialGradientBrush x:Key="BgMain" GradientOrigin="0.5,0.3" Center="0.5,0.3" RadiusX="0.9" RadiusY="0.9">
+            <GradientStop Color="#150E22" Offset="0"/>
+            <GradientStop Color="#0F0A18" Offset="1"/>
+        </RadialGradientBrush>
         <SolidColorBrush x:Key="BgSidebar"   Color="#0A0612"/>
         <SolidColorBrush x:Key="BgCard"      Color="#1A1028"/>
         <SolidColorBrush x:Key="BgCard2"     Color="#130E1F"/>
@@ -40,6 +43,7 @@
         <local:InvertBoolConverter      x:Key="InvBool"/>
         <local:SizeConverter            x:Key="SzConv"/>
         <local:BoolToTextConverter      x:Key="BoolText"/>
+        <local:IsNegativeConverter      x:Key="IsNegative"/>
         <local:PercentToWidthConverter  x:Key="PctWidth"/>
         <local:PercentToHeightConverter x:Key="PctHeight"/>
         <local:BoolToVisibilityConverter x:Key="BoolToVis"/>
@@ -313,6 +317,7 @@
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="Foreground" Value="#5A4878"/>
             <Setter Property="Margin"     Value="18,18,12,4"/>
+            <Setter Property="local:TrackingText.Enabled" Value="True"/>
         </Style>
 
         <Style x:Key="PageTitle" TargetType="TextBlock">
@@ -334,6 +339,7 @@
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="Foreground" Value="{StaticResource TxtSecond}"/>
             <Setter Property="Margin"     Value="0,0,0,2"/>
+            <Setter Property="local:TrackingText.Enabled" Value="True"/>
         </Style>
 
         <Style x:Key="LogBox" TargetType="TextBox">
@@ -471,7 +477,7 @@
                                RenderOptions.BitmapScalingMode="HighQuality"/>
                         <TextBlock Text="EKIPPP" FontSize="15" FontWeight="Black"
                                    Foreground="{StaticResource AccentLight}" VerticalAlignment="Center"/>
-                        <TextBlock Text=" OPTIMIZER" FontSize="15" FontWeight="Light"
+                        <TextBlock Text=" OPTIMISATEUR" FontSize="15" FontWeight="Light"
                                    Foreground="{StaticResource TxtSecond}" VerticalAlignment="Center"/>
                         <Border Background="#2D1B4E" CornerRadius="4" Padding="6,2" Margin="12,0,0,0" VerticalAlignment="Center">
                             <TextBlock Text="{Binding VersionDisplay}" FontSize="10" Foreground="{StaticResource AccentLight}" FontWeight="Bold"/>
@@ -585,6 +591,15 @@
                                         <TextBlock Text="{Binding CriticalCount}" FontSize="10"
                                                    FontWeight="Bold" Foreground="#F87171"/>
                                     </Border>
+                                </StackPanel>
+                            </Button>
+
+                            <Button Style="{StaticResource NavBtn}" x:Name="Btn13"
+                                    Command="{Binding SelectTabCommand}" CommandParameter="13">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="🛠" Width="20" FontSize="12"
+                                               Foreground="#60A5FA" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Réparation" FontSize="13" Margin="4,0,0,0" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
 
@@ -717,7 +732,7 @@
                                                VerticalAlignment="Top" Margin="0,1,12,0"/>
                                     <TextBlock Grid.Column="1" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TxtSecond}">
                                         <Run FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}">À savoir — </Run>
-                                        <Run>Aucun logiciel ne peut garantir un gain chiffré de FPS. EKIPPP OPTIMIZER optimise les conditions de votre PC : nettoyage en profondeur, libération de RAM, suppression des processus parasites, fermeture des overlays et application de tweaks Windows reconnus. Les résultats dépendent de votre configuration. L'app vous fait gagner du temps et simplifie en quelques clics des optimisations qui prendraient des heures manuellement.</Run>
+                                        <Run>Aucun logiciel ne peut garantir un gain chiffré de FPS. EKIPPP OPTIMISATEUR optimise les conditions de votre PC : nettoyage en profondeur, libération de RAM, suppression des processus parasites, fermeture des overlays et application de tweaks Windows reconnus. Les résultats dépendent de votre configuration. L'app vous fait gagner du temps et simplifie en quelques clics des optimisations qui prendraient des heures manuellement.</Run>
                                     </TextBlock>
                                 </Grid>
                             </Border>
@@ -753,6 +768,93 @@
                                 </Grid>
                             </Border>
 
+                            <!-- ══ SCORE PC — HERO ═══════════════════════════════ -->
+                            <Border Style="{StaticResource Card}" Margin="0,0,0,16" Padding="28,24">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <local:CircularGauge x:Name="DashboardScoreGauge" Grid.Column="0" Value="{Binding PcScore}"
+                                                         Title="SANTÉ GLOBALE"
+                                                         CenterText="{Binding PcScoreGrade}"
+                                                         ArcBrush="{Binding PcScoreBrush}"
+                                                         Margin="0,0,20,0">
+                                        <local:CircularGauge.Effect>
+                                            <DropShadowEffect Color="{Binding PcScoreGlowColor}" BlurRadius="45" ShadowDepth="0" Opacity="0.35"/>
+                                        </local:CircularGauge.Effect>
+                                    </local:CircularGauge>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                            <TextBlock Text="SCORE PC GLOBAL" Style="{StaticResource MetricLabel}" Margin="0,0,10,0"/>
+                                            <Border Background="#1E1232" CornerRadius="6" Padding="7,2" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding PcScoreRank}" FontSize="10" FontWeight="Bold"
+                                                           Foreground="{Binding PcScoreBrush}"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock FontSize="40" FontWeight="Black">
+                                            <Run Text="{Binding PcScore}"/>
+                                            <Run Text="/100" FontSize="18" Foreground="{StaticResource TxtMuted}"/>
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding PcScorePercentile}" FontSize="12" FontStyle="Italic"
+                                                   Foreground="{StaticResource AccentLight}" Margin="0,4,0,0"/>
+                                        <TextBlock Text="{Binding PcScoreAdvice}" FontSize="13" Foreground="{StaticResource TxtSecond}"
+                                                   TextWrapping="Wrap" MaxWidth="480" Margin="0,6,0,0"/>
+                                    </StackPanel>
+                                    <Border Grid.Column="2" Background="#0F2A1A" BorderBrush="#166534" BorderThickness="1"
+                                            CornerRadius="100" Padding="14,8" VerticalAlignment="Center">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ScoreDeltaLabel}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding WeeklyScoreDelta, Converter={StaticResource IsNegative}}" Value="True">
+                                                        <Setter Property="Background" Value="#2A0F0F"/>
+                                                        <Setter Property="BorderBrush" Value="#7F1D1D"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="{Binding ScoreDeltaLabel}" FontSize="13" FontWeight="Bold">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="#4ADE80"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding WeeklyScoreDelta, Converter={StaticResource IsNegative}}" Value="True">
+                                                            <Setter Property="Foreground" Value="#F87171"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Border>
+                                </Grid>
+                            </Border>
+
+                            <!-- ══ BIENVENUE — première session uniquement ═══════ -->
+                            <Border Background="#161029" BorderBrush="{StaticResource Accent}" BorderThickness="1"
+                                    CornerRadius="12" Margin="0,0,0,16" Padding="18,14"
+                                    Visibility="{Binding ShowWelcomeBanner, Converter={StaticResource BoolToVis}}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="BIENVENUE CHEZ EKIPPP" Style="{StaticResource MetricLabel}" Margin="0,0,0,4"/>
+                                        <TextBlock FontSize="13" Foreground="{StaticResource TxtSecond}" TextWrapping="Wrap" MaxWidth="560"
+                                                   Text="On vient de scanner votre PC pendant le chargement. Cliquez sur « Optimiser en 1 clic » juste en dessous pour voir la différence en quelques secondes."/>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="✕" Width="28" Height="28" Padding="0"
+                                            Background="Transparent" BorderThickness="0" Foreground="{StaticResource TxtMuted}"
+                                            Cursor="Hand" VerticalAlignment="Top"
+                                            Command="{Binding DismissWelcomeBannerCommand}"/>
+                                </Grid>
+                            </Border>
+
                             <!-- ══ OPTIMISATION 1 CLIC ═══════════════════════════ -->
                             <Border BorderBrush="#7C3AED" BorderThickness="1"
                                     CornerRadius="12" Margin="0,0,0,16" Padding="20,16">
@@ -762,6 +864,28 @@
                                         <GradientStop Color="#0F0D1E" Offset="1"/>
                                     </LinearGradientBrush>
                                 </Border.Background>
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ShowWelcomeBanner}" Value="True">
+                                                <DataTrigger.EnterActions>
+                                                    <BeginStoryboard x:Name="PulseGlowStoryboard">
+                                                        <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                                            <DoubleAnimation Storyboard.TargetProperty="(Border.Effect).(DropShadowEffect.Opacity)"
+                                                                             From="0.25" To="0.75" Duration="0:0:1"/>
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.EnterActions>
+                                                <DataTrigger.ExitActions>
+                                                    <StopStoryboard BeginStoryboardName="PulseGlowStoryboard"/>
+                                                </DataTrigger.ExitActions>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <Border.Effect>
+                                    <DropShadowEffect Color="#7C3AED" BlurRadius="30" ShadowDepth="0" Opacity="0.25"/>
+                                </Border.Effect>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -996,44 +1120,9 @@
                                 </Border>
                             </UniformGrid>
 
-                            <!-- SCORE PC + TEMPÉRATURES -->
-                            <UniformGrid Columns="2" Margin="0,0,0,16">
-
-                                <!-- SCORE PC -->
-                                <Border Style="{StaticResource Card}" Margin="0,0,6,0">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Border Width="80" Height="80" CornerRadius="40" Margin="0,0,16,0">
-                                            <Border.Background>
-                                                <SolidColorBrush Color="#1E1232"/>
-                                            </Border.Background>
-                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding PcScoreGrade}"
-                                                           FontSize="28" FontWeight="Black" TextAlignment="Center"
-                                                           Foreground="{Binding PcScoreBrush}"/>
-                                            </StackPanel>
-                                        </Border>
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                            <TextBlock Text="SCORE PC GLOBAL" Style="{StaticResource MetricLabel}" Margin="0,0,0,4"/>
-                                            <TextBlock FontSize="32" FontWeight="Black">
-                                                <Run Text="{Binding PcScore}"/>
-                                                <Run Text="/100" FontSize="16" Foreground="{StaticResource TxtMuted}"/>
-                                            </TextBlock>
-                                            <TextBlock Text="Basé sur l'analyse diagnostics" FontSize="12"
-                                                       Foreground="{StaticResource TxtMuted}" Margin="0,2,0,0"/>
-                                            <TextBlock Text="{Binding PcScoreAdvice}" FontSize="12"
-                                                       Foreground="{StaticResource TxtMuted}" Margin="0,6,0,0"
-                                                       TextWrapping="Wrap" MaxWidth="280"/>
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-
-                                <!-- TEMPÉRATURES -->
-                                <Border Style="{StaticResource Card}" Margin="6,0,0,0">
-                                    <StackPanel>
+                            <!-- TEMPÉRATURES -->
+                            <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+                                <StackPanel>
                                         <TextBlock Text="TEMPÉRATURES" Style="{StaticResource MetricLabel}" Margin="0,0,0,10"/>
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions>
@@ -1107,7 +1196,6 @@
                                         </Grid>
                                     </StackPanel>
                                 </Border>
-                            </UniformGrid>
 
                             <!-- CŒURS LOGIQUES + TOP PROCESSUS -->
                             <UniformGrid Columns="2" Margin="0,0,0,0">
@@ -1244,6 +1332,23 @@
                                 </StackPanel>
                             </Border>
 
+                            <!-- INVITER UN AMI -->
+                            <Border Style="{StaticResource Card}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="INVITER UN AMI" Style="{StaticResource MetricLabel}" Margin="0,0,0,4"/>
+                                        <TextBlock FontSize="12" Foreground="{StaticResource TxtSecond}" TextWrapping="Wrap" MaxWidth="480"
+                                                   Text="Copie le lien du Discord EKIPPP pour l'envoyer à un ami."/>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Style="{StaticResource SecBtn}" Content="Copier le lien Discord"
+                                            Command="{Binding CopyReferralMessageCommand}" VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
+
                         </StackPanel>
                     </ScrollViewer>
 
@@ -1271,16 +1376,43 @@
                                         <TextBlock Text="ESPACE RÉCUPÉRABLE" Style="{StaticResource MetricLabel}"/>
                                         <TextBlock FontSize="32" FontWeight="Black" Foreground="{StaticResource AccentLight}"
                                                    Text="{Binding TotalCleanableBytes, Converter={StaticResource SzConv}}"/>
-                                        <TextBlock Text="{Binding CleanStatus}" Foreground="{StaticResource TxtSecond}" FontSize="12" Margin="0,6,0,0"/>
+                                        <TextBlock Text="{Binding CleanStatus}" Foreground="{StaticResource TxtSecond}" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
                                         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                            <Button Style="{StaticResource SecBtn}" Command="{Binding ScanCleanCommand}"
-                                                    IsEnabled="{Binding IsScanning, Converter={StaticResource InvBool}}"
-                                                    Content="Analyser" Margin="0,0,8,0"/>
-                                            <Button Style="{StaticResource PrimaryBtn}" Command="{Binding CleanSelectedCommand}"
-                                                    IsEnabled="{Binding IsCleaning, Converter={StaticResource InvBool}}"
-                                                    Content="Nettoyer"/>
+                                            <Button Command="{Binding ScanCleanCommand}"
+                                                    Content="Analyser" Margin="0,0,8,0">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource SecBtn}">
+                                                        <Setter Property="IsEnabled" Value="True"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsScanning}" Value="True">
+                                                                <Setter Property="IsEnabled" Value="False"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsCleaning}" Value="True">
+                                                                <Setter Property="IsEnabled" Value="False"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                            <Button Command="{Binding CleanSelectedCommand}"
+                                                    ToolTip="Supprime les catégories cochées et vide aussi la corbeille"
+                                                    Content="Nettoyer">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource PrimaryBtn}">
+                                                        <Setter Property="IsEnabled" Value="True"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsScanning}" Value="True">
+                                                                <Setter Property="IsEnabled" Value="False"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsCleaning}" Value="True">
+                                                                <Setter Property="IsEnabled" Value="False"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
                                         </StackPanel>
                                         <StackPanel Margin="0,4,0,0">
                                             <TextBlock TextAlignment="Right" FontSize="12">
@@ -1309,9 +1441,22 @@
                                         <TextBlock FontSize="13" Foreground="{StaticResource TxtMuted}" Margin="0,4,0,0"
                                                    Text="Supprime définitivement tous les fichiers dans votre corbeille Windows."/>
                                     </StackPanel>
-                                    <Button Grid.Column="1" Style="{StaticResource SecBtn}"
-                                            Command="{Binding EmptyRecycleBinCommand}"
-                                            Content="Vider la corbeille" VerticalAlignment="Center"/>
+                                    <Button Grid.Column="1" Command="{Binding EmptyRecycleBinCommand}"
+                                            Content="Vider la corbeille" VerticalAlignment="Center">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecBtn}">
+                                                <Setter Property="IsEnabled" Value="True"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsScanning}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsCleaning}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
                                 </Grid>
                             </Border>
 
@@ -1423,13 +1568,27 @@
                                                                 </Style>
                                                             </TextBlock.Style>
                                                         </TextBlock>
-                                                        <Button Grid.Column="3" Style="{StaticResource SecBtn}" Margin="8,0,0,0"
+                                                        <Button Grid.Column="3" Margin="8,0,0,0"
                                                                 Padding="10,4" FontSize="12" Content="Nettoyer"
-                                                                IsEnabled="{Binding IsEmpty, Converter={StaticResource InvBool}}"
                                                                 ToolTip="Supprime les fichiers cache de ce jeu pour libérer de l'espace"
                                                                 Command="{Binding DataContext.CleanGameCacheCommand,
                                                                     RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                CommandParameter="{Binding}"/>
+                                                                CommandParameter="{Binding}">
+                                                            <Button.Style>
+                                                                <Style TargetType="Button" BasedOn="{StaticResource SecBtn}">
+                                                                    <Setter Property="IsEnabled" Value="True"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsEmpty}" Value="True">
+                                                                            <Setter Property="IsEnabled" Value="False"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding DataContext.IsGameCacheBusy,
+                                                                            RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="True">
+                                                                            <Setter Property="IsEnabled" Value="False"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Button.Style>
+                                                        </Button>
                                                     </Grid>
                                                 </Border>
                                             </DataTemplate>
@@ -1770,6 +1929,118 @@
                                 </StackPanel>
                             </Border>
 
+                            <!-- ══ LATENCE SOUS CHARGE (BUFFERBLOAT) ═══════════════════════════════ -->
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="LATENCE SOUS CHARGE" Style="{StaticResource MetricLabel}"/>
+                                        <Button Grid.Column="1" Style="{StaticResource PrimaryBtn}"
+                                                Command="{Binding TestBufferbloatCommand}"
+                                                IsEnabled="{Binding IsBufferbloatBusy, Converter={StaticResource InvBool}}"
+                                                Content="Tester" Padding="18,8"/>
+                                    </Grid>
+                                    <TextBlock Text="{Binding BufferbloatStatus}" Foreground="{StaticResource TxtSecond}"
+                                               FontSize="12" TextWrapping="Wrap" Margin="0,4,0,12"/>
+
+                                    <UniformGrid Columns="4">
+                                        <StackPanel Margin="0,0,8,0">
+                                            <TextBlock Text="AU REPOS" FontSize="10" Foreground="{StaticResource TxtMuted}"
+                                                       FontWeight="Bold" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="{Binding BufferbloatResult.IdleLabel}" FontSize="20" FontWeight="Black"
+                                                       Foreground="{StaticResource TxtPrimary}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                        <StackPanel Margin="8,0">
+                                            <TextBlock Text="EN CHARGE" FontSize="10" Foreground="{StaticResource TxtMuted}"
+                                                       FontWeight="Bold" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="{Binding BufferbloatResult.LoadedLabel}" FontSize="20" FontWeight="Black"
+                                                       Foreground="{StaticResource Warning}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                        <StackPanel Margin="8,0">
+                                            <TextBlock Text="AUGMENTATION" FontSize="10" Foreground="{StaticResource TxtMuted}"
+                                                       FontWeight="Bold" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="{Binding BufferbloatResult.IncreaseLabel}" FontSize="20" FontWeight="Black"
+                                                       Foreground="{StaticResource TxtPrimary}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                        <StackPanel Margin="8,0,0,0">
+                                            <TextBlock Text="NOTE" FontSize="10" Foreground="{StaticResource TxtMuted}"
+                                                       FontWeight="Bold" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="{Binding BufferbloatResult.Grade}" FontSize="20" FontWeight="Black"
+                                                       Foreground="{StaticResource AccentLight}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </UniformGrid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- ══ DOCTEUR DE CONNEXION SERVEUR FIVEM ═══════════════════════════════ -->
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="DOCTEUR DE CONNEXION FIVEM" Style="{StaticResource MetricLabel}" Margin="0,0,0,6"/>
+                                    <TextBlock Text="Diagnostique précisément OÙ se situe le lag/rubber-banding sur un serveur FiveM précis : ta connexion, un nœud réseau intermédiaire, ou l'hébergeur du serveur."
+                                               FontSize="12" Foreground="{StaticResource TxtSecond}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid>
+                                            <TextBox Text="{Binding FiveMServerInput, UpdateSourceTrigger=PropertyChanged}"
+                                                     Background="#12091C" Foreground="{StaticResource TxtPrimary}" BorderBrush="#2D1F45"
+                                                     Padding="10,8" VerticalContentAlignment="Center"/>
+                                            <TextBlock Text="cfx.re/join/xxxxx ou IP:port" Foreground="{StaticResource TxtMuted}"
+                                                       Padding="12,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding FiveMServerInput}" Value="">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
+                                        <Button Grid.Column="1" Style="{StaticResource PrimaryBtn}" Margin="10,0,0,0"
+                                                Command="{Binding DiagnoseFiveMServerCommand}"
+                                                IsEnabled="{Binding IsFiveMDiagBusy, Converter={StaticResource InvBool}}"
+                                                Content="Diagnostiquer" Padding="18,8"/>
+                                    </Grid>
+                                    <TextBlock Text="{Binding FiveMStatus}" Foreground="{StaticResource TxtSecond}"
+                                               FontSize="12" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                    <ItemsControl ItemsSource="{Binding FiveMHops}" Margin="0,0,0,10">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type svc:FiveMHopResult}">
+                                                <Grid Margin="0,0,0,4">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="30"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="70"/>
+                                                        <ColumnDefinition Width="50"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Hop}" FontSize="11" Foreground="{StaticResource TxtMuted}" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding AddressLabel}" FontSize="12"
+                                                               Foreground="{StaticResource TxtSecond}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding LatencyLabel}" FontSize="12"
+                                                               Foreground="{StaticResource TxtPrimary}" VerticalAlignment="Center" TextAlignment="Right"/>
+                                                    <TextBlock Grid.Column="3" Text="{Binding LossLabel}" FontSize="12"
+                                                               Foreground="{StaticResource Warning}" VerticalAlignment="Center" TextAlignment="Right"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <Border Background="#12091C" CornerRadius="8" Padding="14,10">
+                                        <TextBlock Text="{Binding FiveMVerdict}" FontSize="13" FontStyle="Italic"
+                                                   Foreground="{StaticResource AccentLight}" TextWrapping="Wrap"/>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
                             <Border Style="{StaticResource Card}">
                                 <StackPanel>
                                     <TextBlock Text="OPTIMISATIONS" Style="{StaticResource MetricLabel}" Margin="0,0,0,14"/>
@@ -1858,9 +2129,10 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
-                                            <TextBlock Text="DNS SPEED TEST" Style="{StaticResource MetricLabel}"/>
+                                            <TextBlock Text="TEST DE LATENCE DNS" Style="{StaticResource MetricLabel}"/>
                                             <TextBlock Text="{Binding DnsTestStatus}" FontSize="12"
                                                        Foreground="{StaticResource TxtMuted}" Margin="0,4,0,0" TextWrapping="Wrap"/>
                                         </StackPanel>
@@ -1888,6 +2160,14 @@
                                                 VerticalAlignment="Top"
                                                 ToolTip="Remet les DNS en automatique (DHCP) — DNS attribué par votre box">
                                             <TextBlock Text="Remettre en auto"/>
+                                        </Button>
+                                        <Button Grid.Column="3" Style="{StaticResource SecBtn}" Margin="6,0,0,0"
+                                                Command="{Binding RestorePreviousDnsCommand}"
+                                                IsEnabled="{Binding IsDnsBusy, Converter={StaticResource InvBool}}"
+                                                Visibility="{Binding CanRestorePreviousDns, Converter={StaticResource BoolToVis}}"
+                                                VerticalAlignment="Top"
+                                                ToolTip="Réapplique exactement le DNS que vous aviez avant d'utiliser cet outil">
+                                            <TextBlock Text="Restaurer ma config d'origine"/>
                                         </Button>
                                     </Grid>
                                     <ItemsControl ItemsSource="{Binding DnsResults}">
@@ -1989,7 +2269,7 @@
                                         </TextBlock.Style>
                                     </TextBlock>
                                     <TextBlock Text="{Binding StorageStatus}" Foreground="{StaticResource TxtSecond}"
-                                               FontSize="13" VerticalAlignment="Center"/>
+                                               FontSize="13" VerticalAlignment="Center" TextWrapping="Wrap"/>
                                 </StackPanel>
                             </Border>
 
@@ -2313,13 +2593,27 @@
                                                                            VerticalAlignment="Center"/>
                                                             </StackPanel>
                                                             <TextBlock FontSize="12" Foreground="{StaticResource TxtSecond}">
-                                                                <Run Text="{Binding SizeGB, Mode=OneWay}"/><Run Text=" Go  ·  Lecture ~"/>
-                                                                <Run Text="{Binding ReadSpeedMBs, Mode=OneWay}"/><Run Text=" Mo/s"/>
+                                                                <Run Text="{Binding SizeGB, Mode=OneWay}"/><Run Text=" Go"/>
+                                                                <Run Text="{Binding SpeedLabel, Mode=OneWay}"/>
                                                             </TextBlock>
                                                         </StackPanel>
                                                         <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="14" FontWeight="Bold"
-                                                                   Foreground="{StaticResource Success}" TextAlignment="Right"
-                                                                   HorizontalAlignment="Right" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                                                                   TextAlignment="Right"
+                                                                   HorizontalAlignment="Right" VerticalAlignment="Center" Margin="12,0,0,0">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="{StaticResource Success}"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding HealthPercent}" Value="50">
+                                                                            <Setter Property="Foreground" Value="{StaticResource Warning}"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding HealthPercent}" Value="10">
+                                                                            <Setter Property="Foreground" Value="{StaticResource Danger}"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
                                                     </Grid>
                                                 </Border>
                                             </DataTemplate>
@@ -2344,7 +2638,7 @@
                                     <TextBlock Text="Gestion des pilotes" Style="{StaticResource PageTitle}"/>
                                     <TextBlock Style="{StaticResource PageSub}"
                                                Text="Liste tous les pilotes installés sur votre PC. Un ⚠ indique un pilote potentiellement obsolète ou non signé à vérifier."/>
-                                    <TextBlock Text="{Binding DriverStatus}" FontSize="12" Foreground="{StaticResource TxtSecond}" Margin="0,4,0,0"/>
+                                    <TextBlock Text="{Binding DriverStatus}" FontSize="12" Foreground="{StaticResource TxtSecond}" Margin="0,4,0,0" TextWrapping="Wrap"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                     <Button Style="{StaticResource SecBtn}" Command="{Binding ToggleShowAllDriversCommand}"
@@ -2409,7 +2703,7 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
                                     <TextBlock Text="Détection de problèmes" Style="{StaticResource PageTitle}"/>
-                                    <TextBlock Text="{Binding DiagStatus}" Style="{StaticResource PageSub}" Margin="0"/>
+                                    <TextBlock Text="{Binding DiagStatus}" Style="{StaticResource PageSub}" Margin="0" TextWrapping="Wrap"/>
                                 </StackPanel>
                                 <Button Grid.Column="1" Style="{StaticResource PrimaryBtn}"
                                         Command="{Binding RefreshDiagnosticsCommand}"
@@ -2877,10 +3171,6 @@
                                                     </TextBlock>
                                                     <TextBlock Text="   Le jeu reçoit plus de temps CPU face aux processus en arrière-plan de priorité normale." FontSize="11" Foreground="{StaticResource TxtMuted}" Margin="0,0,0,8" TextWrapping="Wrap"/>
                                                     <TextBlock FontSize="12" Foreground="{StaticResource TxtSecond}" Margin="0,0,0,5" TextWrapping="Wrap">
-                                                        <Run Text="🖥️ " Foreground="#A78BFA"/><Run Text="Tous les cores CPU dédiés" FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}"/>
-                                                    </TextBlock>
-                                                    <TextBlock Text="   Affinité forcée sur 100% des threads disponibles." FontSize="11" Foreground="{StaticResource TxtMuted}" Margin="0,0,0,8" TextWrapping="Wrap"/>
-                                                    <TextBlock FontSize="12" Foreground="{StaticResource TxtSecond}" Margin="0,0,0,5" TextWrapping="Wrap">
                                                         <Run Text="⏱️ " Foreground="#A78BFA"/><Run Text="Timer système → 1ms" FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}"/>
                                                     </TextBlock>
                                                     <TextBlock Text="   Réduit la latence input. L'intervalle du timer passe de ~15ms (défaut Windows) à 1ms, si aucune application ne l'a déjà réduit." FontSize="11" Foreground="{StaticResource TxtMuted}" TextWrapping="Wrap"/>
@@ -3172,6 +3462,100 @@
                                                     IsChecked="{Binding TwVisualEffects}" Command="{Binding ToggleVisualEffectsCommand}" IsLast="True"/>
                                 </StackPanel>
                             </Border>
+
+                            <!-- ══ NAVIGATEURS ═══════════════════════════════════ -->
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="NAVIGATEURS" Style="{StaticResource MetricLabel}"/>
+                                            <TextBlock Text="{Binding BrowserStatus}" FontSize="12"
+                                                       Foreground="{StaticResource TxtMuted}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Style="{StaticResource SecBtn}" VerticalAlignment="Top"
+                                                Command="{Binding ScanBrowsersCommand}"
+                                                IsEnabled="{Binding IsBrowserBusy, Converter={StaticResource InvBool}}"
+                                                ToolTip="Détecte les navigateurs installés et l'espace récupérable (cache, cookies, historique)">
+                                            <TextBlock>
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="Scanner"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsBrowserBusy}" Value="True">
+                                                                <Setter Property="Text" Value="Scan…"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Button>
+                                    </Grid>
+                                    <ItemsControl ItemsSource="{Binding Browsers}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type svc:BrowserProfile}">
+                                                <Border Background="#12091C" CornerRadius="8" Padding="12,8" Margin="0,0,0,5">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="30"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="80"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding Icon}" FontSize="18" VerticalAlignment="Center"/>
+                                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Browser}" FontSize="13" FontWeight="SemiBold"
+                                                                       Foreground="{StaticResource TxtPrimary}"/>
+                                                            <TextBlock FontSize="11" Foreground="{StaticResource TxtMuted}" Margin="0,2,0,0">
+                                                                <Run Text="Cache "/><Run Text="{Binding CacheLabel, Mode=OneWay}"/>
+                                                                <Run Text="  ·  Cookies "/><Run Text="{Binding CookiesLabel, Mode=OneWay}"/>
+                                                                <Run Text="  ·  Historique "/><Run Text="{Binding HistoryLabel, Mode=OneWay}"/>
+                                                            </TextBlock>
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="2" Text="{Binding TotalLabel}" FontSize="13" FontWeight="Bold"
+                                                                   Foreground="{StaticResource AccentLight}"
+                                                                   TextAlignment="Right" VerticalAlignment="Center"/>
+                                                        <Button Grid.Column="3" Margin="8,0,0,0" Padding="10,4" FontSize="12"
+                                                                Content="Vider cache" Style="{StaticResource SecBtn}"
+                                                                ToolTip="Supprime uniquement le cache — cookies et historique conservés"
+                                                                Command="{Binding DataContext.CleanBrowserCacheCommand,
+                                                                    RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding}"
+                                                                IsEnabled="{Binding DataContext.IsBrowserBusy, Converter={StaticResource InvBool},
+                                                                    RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
+                                                        <Button Grid.Column="4" Margin="8,0,0,0" Padding="10,4" FontSize="12"
+                                                                Content="Tout nettoyer" Style="{StaticResource PrimaryBtn}"
+                                                                ToolTip="Supprime cache + cookies + historique — déconnexion de tous les sites"
+                                                                Command="{Binding DataContext.CleanBrowserAllCommand,
+                                                                    RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding}"
+                                                                IsEnabled="{Binding DataContext.IsBrowserBusy, Converter={StaticResource InvBool},
+                                                                    RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="Cliquez sur 'Scanner' pour détecter vos navigateurs installés."
+                                               Foreground="{StaticResource TxtMuted}" FontSize="12" FontStyle="Italic"
+                                               TextWrapping="Wrap" Margin="0,6,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Browsers.Count}" Value="0">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </ScrollViewer>
 
@@ -3186,7 +3570,7 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
                                     <TextBlock Text="Sécurité et restauration" Style="{StaticResource PageTitle}"/>
-                                    <TextBlock Text="{Binding SecurityStatus}" Style="{StaticResource PageSub}"/>
+                                    <TextBlock Text="{Binding SecurityStatus}" Style="{StaticResource PageSub}" TextWrapping="Wrap"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                     <Button Style="{StaticResource SecBtn}" Margin="0,0,8,0"
@@ -3671,6 +4055,12 @@
                                                                    Margin="4,0,8,0"/>
                                                         <!-- Boutons -->
                                                         <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <Button Style="{StaticResource SecBtn}" Padding="10,4" FontSize="12" Margin="0,0,6,0"
+                                                                    Content="Nettoyer résidus"
+                                                                    ToolTip="Supprime le dossier d'installation et les clés de registre restants d'une app déjà désinstallée"
+                                                                    Command="{Binding DataContext.CleanResidualsCommand,
+                                                                        RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    CommandParameter="{Binding}"/>
                                                             <Button Style="{StaticResource SecBtn}" Padding="10,4" FontSize="12"
                                                                     Content="Désinstaller"
                                                                     ToolTip="Lance le désinstalleur officiel de cette application"
@@ -3702,8 +4092,159 @@
                         </StackPanel>
                     </ScrollViewer>
 
+                    <!-- TAB 13 — RÉPARATION WINDOWS -->
+                    <ScrollViewer x:Name="Tab13Panel" Visibility="Collapsed"
+                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="28,24,28,24">
+                            <TextBlock Text="Réparation Windows" Style="{StaticResource PageTitle}"/>
+                            <TextBlock Text="Outils de réparation système avancés (SFC, DISM, réseau, Windows Update)." Style="{StaticResource PageSub}"/>
+
+                            <Border Background="#1A0D00" BorderBrush="#92400E" BorderThickness="1"
+                                    CornerRadius="8" Padding="14,10" Margin="0,0,0,14">
+                                <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TxtSecond}">
+                                    <Run FontWeight="SemiBold" Foreground="{StaticResource Warning}">⚠ Opérations avancées — </Run>
+                                    <Run>Ces réparations peuvent prendre plusieurs minutes (jusqu'à 20 min pour DISM). Ne fermez pas l'application et ne redémarrez pas le PC pendant l'exécution.</Run>
+                                </TextBlock>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="OUTILS DE RÉPARATION" Style="{StaticResource MetricLabel}" Margin="0,0,0,12"/>
+                                    <UniformGrid Columns="2" Rows="2">
+                                        <Button Style="{StaticResource SecBtn}" Margin="0,0,8,8" Padding="12,10"
+                                                Command="{Binding RunSfcCommand}"
+                                                IsEnabled="{Binding IsRepairing, Converter={StaticResource InvBool}}"
+                                                ToolTip="Vérifie et répare les fichiers système Windows corrompus (System File Checker)">
+                                            <StackPanel>
+                                                <TextBlock Text="SFC /scannow" FontWeight="SemiBold" FontSize="13"/>
+                                                <TextBlock Text="Vérifie les fichiers système" FontSize="11" Foreground="{StaticResource TxtMuted}" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Style="{StaticResource SecBtn}" Margin="8,0,0,8" Padding="12,10"
+                                                Command="{Binding RunDismCommand}"
+                                                IsEnabled="{Binding IsRepairing, Converter={StaticResource InvBool}}"
+                                                ToolTip="Répare l'image Windows sous-jacente (peut nécessiter une connexion Internet)">
+                                            <StackPanel>
+                                                <TextBlock Text="DISM RestoreHealth" FontWeight="SemiBold" FontSize="13"/>
+                                                <TextBlock Text="Répare l'image Windows" FontSize="11" Foreground="{StaticResource TxtMuted}" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Style="{StaticResource SecBtn}" Margin="0,8,8,0" Padding="12,10"
+                                                Command="{Binding ResetNetworkStackCommand}"
+                                                IsEnabled="{Binding IsRepairing, Converter={StaticResource InvBool}}"
+                                                ToolTip="Réinitialise TCP/IP, Winsock et le cache DNS">
+                                            <StackPanel>
+                                                <TextBlock Text="Réinitialiser le réseau" FontWeight="SemiBold" FontSize="13"/>
+                                                <TextBlock Text="TCP/IP, Winsock, DNS" FontSize="11" Foreground="{StaticResource TxtMuted}" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Style="{StaticResource SecBtn}" Margin="8,8,0,0" Padding="12,10"
+                                                Command="{Binding RepairWindowsUpdateCommand}"
+                                                IsEnabled="{Binding IsRepairing, Converter={StaticResource InvBool}}"
+                                                ToolTip="Réinitialise les composants et le cache de Windows Update">
+                                            <StackPanel>
+                                                <TextBlock Text="Réparer Windows Update" FontWeight="SemiBold" FontSize="13"/>
+                                                <TextBlock Text="Réinitialise le cache MAJ" FontSize="11" Foreground="{StaticResource TxtMuted}" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </UniformGrid>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="JOURNAL" Style="{StaticResource MetricLabel}" Margin="0,0,0,10"/>
+                                    <Border Background="#0A0612" CornerRadius="8" Padding="12" MaxHeight="320">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                            <TextBlock Text="{Binding RepairLog}" TextWrapping="Wrap" FontFamily="Consolas"
+                                                       FontSize="12" Foreground="{StaticResource TxtSecond}"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                    <TextBlock Text="Le journal apparaît ici après avoir lancé un outil ci-dessus."
+                                               Foreground="{StaticResource TxtMuted}" FontSize="12" FontStyle="Italic"
+                                               TextWrapping="Wrap" Margin="0,8,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding RepairLog}" Value="">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+
                 </Grid>
             </Grid>
+
+            <!-- ÉCRAN DE VICTOIRE — affiché en fin d'optimisation 1 clic -->
+            <Border x:Name="VictoryOverlay" Grid.Row="1" Background="#CC000000"
+                    Visibility="Collapsed" MouseLeftButtonDown="VictoryOverlay_MouseDown" Panel.ZIndex="500">
+                <Grid>
+                    <Canvas x:Name="ConfettiCanvas" IsHitTestVisible="False" ClipToBounds="True"/>
+
+                    <Border Background="#15102A" CornerRadius="20" BorderBrush="{StaticResource Accent}"
+                            BorderThickness="1" Width="440" Padding="36,32"
+                            HorizontalAlignment="Center" VerticalAlignment="Center"
+                            MouseLeftButtonDown="VictoryCard_MouseDown">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#7C3AED" BlurRadius="60" ShadowDepth="0" Opacity="0.5"/>
+                        </Border.Effect>
+                        <Grid>
+                            <StackPanel x:Name="VictoryCardContent" HorizontalAlignment="Center">
+                                <TextBlock Text="OPTIMISATION TERMINÉE" FontSize="12" FontWeight="Bold"
+                                           Foreground="{StaticResource Accent}" HorizontalAlignment="Center" Margin="0,0,0,20"/>
+
+                            <Grid HorizontalAlignment="Center">
+                                <Ellipse x:Name="VictoryShockwave" Width="80" Height="80" Opacity="0"
+                                         IsHitTestVisible="False">
+                                    <Ellipse.RenderTransform>
+                                        <ScaleTransform ScaleX="0.8" ScaleY="0.8"/>
+                                    </Ellipse.RenderTransform>
+                                    <Ellipse.Fill>
+                                        <RadialGradientBrush>
+                                            <GradientStop Color="#7C3AED" Offset="0"/>
+                                            <GradientStop Color="#7C3AED" Offset="0.5"/>
+                                            <GradientStop Color="Transparent" Offset="1"/>
+                                        </RadialGradientBrush>
+                                    </Ellipse.Fill>
+                                </Ellipse>
+                                <local:CircularGauge x:Name="VictoryGauge" Title="" HorizontalAlignment="Center"/>
+                            </Grid>
+
+                            <TextBlock x:Name="VictoryDeltaText" FontSize="24" FontWeight="Black"
+                                       HorizontalAlignment="Center" Margin="0,20,0,4"/>
+
+                            <TextBlock x:Name="VictoryFreedText" FontSize="13"
+                                       Foreground="{StaticResource TxtSecond}" HorizontalAlignment="Center"
+                                       TextWrapping="Wrap" TextAlignment="Center" MaxWidth="360" Margin="0,0,0,24"/>
+
+                            <UniformGrid Columns="2" Margin="0,0,0,10">
+                                <Button Content="📋 Copier l'image" Margin="0,0,6,0" Height="42"
+                                        Style="{StaticResource SecBtn}" Click="CopyShareCard_Click"/>
+                                <Button Content="💾 Enregistrer" Margin="6,0,0,0" Height="42"
+                                        Style="{StaticResource SecBtn}" Click="SaveShareCard_Click"/>
+                            </UniformGrid>
+                            <Button Content="Continuer →" Height="44"
+                                    Style="{StaticResource PrimaryBtn}" Click="VictoryContinue_Click"/>
+                            </StackPanel>
+
+                            <!-- Ancré au vrai coin de la carte, indépendant de la largeur du titre centré
+                                 en dessous — sinon il finit par chevaucher le texte (cf. bug rapporté). -->
+                            <Button x:Name="VictorySoundToggle" Content="🔊" FontSize="14" Padding="6,4"
+                                    Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-16,-16,0"
+                                    Click="ToggleVictorySound_Click" ToolTip="Activer/couper le son de victoire"
+                                    Panel.ZIndex="10"/>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
 
             <!-- TOAST -->
             <Border x:Name="ToastBorder" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Bottom"

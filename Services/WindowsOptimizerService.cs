@@ -177,10 +177,15 @@ public class WindowsOptimizerService
         var v = k?.GetValue("Enabled");
         return v is int i && i == 0 ? TweakState.On : TweakState.Off;
     }
-    public void SetAdvertisingId(bool disable)
+    public bool SetAdvertisingId(bool disable)
     {
-        using var k = Registry.CurrentUser.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo");
-        k.SetValue("Enabled", disable ? 0 : 1, RegistryValueKind.DWord);
+        try
+        {
+            using var k = Registry.CurrentUser.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo");
+            k.SetValue("Enabled", disable ? 0 : 1, RegistryValueKind.DWord);
+            return true;
+        }
+        catch { return false; }
     }
 
     // ── Location ───────────────────────────────────────────────────────────
@@ -190,10 +195,15 @@ public class WindowsOptimizerService
         var v = k?.GetValue("Value");
         return v is string s && s == "Deny" ? TweakState.On : TweakState.Off;
     }
-    public void SetLocation(bool disable)
+    public bool SetLocation(bool disable)
     {
-        using var k = Registry.CurrentUser.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceAccess\Global\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}");
-        k.SetValue("Value", disable ? "Deny" : "Allow");
+        try
+        {
+            using var k = Registry.CurrentUser.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceAccess\Global\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}");
+            k.SetValue("Value", disable ? "Deny" : "Allow");
+            return true;
+        }
+        catch { return false; }
     }
 
     // ── Cortana ────────────────────────────────────────────────────────────
@@ -221,10 +231,15 @@ public class WindowsOptimizerService
         var v = k?.GetValue("VisualFXSetting");
         return v is int i && i == 2 ? TweakState.On : TweakState.Off;
     }
-    public void SetVisualEffects(bool disable)
+    public bool SetVisualEffects(bool disable)
     {
-        using var k = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects");
-        k.SetValue("VisualFXSetting", disable ? 2 : 1, RegistryValueKind.DWord);
+        try
+        {
+            using var k = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects");
+            k.SetValue("VisualFXSetting", disable ? 2 : 1, RegistryValueKind.DWord);
+            return true;
+        }
+        catch { return false; }
     }
 
     // ── Profiles ───────────────────────────────────────────────────────────
@@ -238,6 +253,56 @@ public class WindowsOptimizerService
         SetMousePrecision(true);
         SetHighPerfPlan(true);
         SetNetworkThrottling(true);
+        SaveDriftSnapshot();
+    }
+
+    // ── Détecteur de dérive d'optimisation ─────────────────────────────────
+    // Windows Update et les mises à jour de pilotes (notamment GPU) réinitialisent parfois
+    // silencieusement certains réglages sans prévenir l'utilisateur. On mémorise l'état
+    // "optimisé" juste après le profil Gaming, pour pouvoir détecter un retour en arrière plus tard.
+    private const string DriftRegKey = @"SOFTWARE\EKIPPP-OPTIMIZER\Drift";
+
+    private void SaveDriftSnapshot()
+    {
+        try
+        {
+            using var k = Registry.CurrentUser.CreateSubKey(DriftRegKey);
+            k.SetValue("Applied",       1, RegistryValueKind.DWord);
+            k.SetValue("GameDvr",       GetGameDvr()             == TweakState.On ? 1 : 0, RegistryValueKind.DWord);
+            k.SetValue("GpuPriority",   GetGpuPriority()         == TweakState.On ? 1 : 0, RegistryValueKind.DWord);
+            k.SetValue("SystemResp",    GetSystemResponsiveness()== TweakState.On ? 1 : 0, RegistryValueKind.DWord);
+            k.SetValue("Win32Priority", GetWin32Priority()       == TweakState.On ? 1 : 0, RegistryValueKind.DWord);
+            k.SetValue("NetThrottle",   GetNetworkThrottling()   == TweakState.On ? 1 : 0, RegistryValueKind.DWord);
+            k.SetValue("HighPerf",      GetHighPerfPlan()        == TweakState.On ? 1 : 0, RegistryValueKind.DWord);
+        }
+        catch { }
+    }
+
+    // Renvoie les réglages qui étaient actifs juste après la dernière application du profil Gaming
+    // mais qui sont revenus à leur état non-optimisé depuis — liste vide si rien n'a dérivé ou si
+    // aucun profil Gaming n'a jamais été appliqué.
+    public List<string> CheckOptimizationDrift()
+    {
+        var drifted = new List<string>();
+        try
+        {
+            using var k = Registry.CurrentUser.OpenSubKey(DriftRegKey);
+            if (k?.GetValue("Applied") is not int applied || applied != 1) return drifted;
+
+            void Check(string regValue, string label, Func<TweakState> getter)
+            {
+                if (k.GetValue(regValue) is int wasOn && wasOn == 1 && getter() != TweakState.On)
+                    drifted.Add(label);
+            }
+            Check("GameDvr",       "Xbox Game DVR",              GetGameDvr);
+            Check("GpuPriority",   "Priorité GPU pour les jeux", GetGpuPriority);
+            Check("SystemResp",    "Réactivité système",         GetSystemResponsiveness);
+            Check("Win32Priority", "Priorité des programmes",    GetWin32Priority);
+            Check("NetThrottle",   "Limitation réseau",          GetNetworkThrottling);
+            Check("HighPerf",      "Plan Haute Performance",     GetHighPerfPlan);
+        }
+        catch { }
+        return drifted;
     }
     public void ApplyBureautiqueProfile()
     {
@@ -279,8 +344,12 @@ public class WindowsOptimizerService
         {
             if (enable)
             {
-                // Active le schéma s'il n'est pas encore présent sur ce PC
-                RunCmd("powercfg", $"/duplicatescheme {ultimateGuid}");
+                // Ne duplique le schéma que s'il n'existe pas déjà — sinon "/duplicatescheme"
+                // crée un nouveau plan à chaque activation ("Ultimate Performance (2)", "(3)"…)
+                // qui s'accumulent silencieusement dans les Options d'alimentation Windows.
+                var list = RunCmd("powercfg", "/list");
+                if (!list.Contains("Ultimate Performance", StringComparison.OrdinalIgnoreCase))
+                    RunCmd("powercfg", $"/duplicatescheme {ultimateGuid}");
                 RunCmd("powercfg", $"/setactive {ultimateGuid}");
             }
             else
@@ -298,11 +367,13 @@ public class WindowsOptimizerService
     }
 
     // ── Network ────────────────────────────────────────────────────────────
-    public void OptimizeTcp()
+    public bool OptimizeTcp()
     {
-        RunCmd("netsh", "int tcp set global autotuninglevel=normal");
-        RunCmd("netsh", "int tcp set global rss=enabled");
-        RunCmd("netsh", "int tcp set global dca=enabled");
+        bool ok = true;
+        ok &= RunCmdOk("netsh", "int tcp set global autotuninglevel=normal");
+        ok &= RunCmdOk("netsh", "int tcp set global rss=enabled");
+        ok &= RunCmdOk("netsh", "int tcp set global dca=enabled");
+        return ok;
     }
     public void FlushDns()
     {
@@ -325,5 +396,22 @@ public class WindowsOptimizerService
             return output;
         }
         catch { return ""; }
+    }
+
+    private static bool RunCmdOk(string exe, string args)
+    {
+        try
+        {
+            var p = Process.Start(new ProcessStartInfo(exe, args)
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true
+            });
+            if (p == null) return false;
+            p.WaitForExit();
+            return p.ExitCode == 0;
+        }
+        catch { return false; }
     }
 }

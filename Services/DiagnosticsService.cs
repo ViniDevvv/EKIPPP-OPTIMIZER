@@ -29,16 +29,24 @@ public record DiagnosticIssue(
         "drivers"          => "Voir les pilotes →",
         "task_manager"     => "Ouvrir Gestionnaire des tâches",
         "event_viewer"     => "Ouvrir Observateur d'événements",
+        "reapply_drift"    => "Réappliquer le profil Gaming",
         _                  => "Corriger"
     };
 }
 
 public class DiagnosticsService
 {
+    private readonly WindowsOptimizerService _optimizer;
+    private readonly CorePinningService _corePinning = new();
+
+    public DiagnosticsService(WindowsOptimizerService? optimizer = null) => _optimizer = optimizer ?? new();
+
     public List<DiagnosticIssue> RunFullDiagnostics()
     {
         var issues = new List<DiagnosticIssue>();
 
+        CheckOptimizationDrift(issues);
+        CheckHybridCpu(issues);
         CheckRam(issues);
         CheckCpuUsage(issues);
         CheckDiskSpace(issues);
@@ -56,8 +64,138 @@ public class DiagnosticsService
         CheckBackgroundProcesses(issues);
         CheckSuspiciousProcesses(issues);
         CheckEventLogCrashes(issues);
+        CheckMemorySpeed(issues);
+        CheckMemoryChannels(issues);
+        CheckMemoryIntegrity(issues);
 
         return issues.OrderByDescending(i => (int)i.Severity).ThenBy(i => i.Category).ToList();
+    }
+
+    // Aucun optimiseur PC classique ne fait de détection de régression persistante : ici, on compare
+    // l'état "optimisé" mémorisé après le dernier profil Gaming à l'état réel actuel — Windows Update
+    // ou une mise à jour de pilote GPU peut avoir tout annulé sans que l'utilisateur s'en aperçoive.
+    private void CheckOptimizationDrift(List<DiagnosticIssue> issues)
+    {
+        try
+        {
+            var drifted = _optimizer.CheckOptimizationDrift();
+            if (drifted.Count == 0) return;
+
+            issues.Add(new($"Windows a annulé {drifted.Count} optimisation(s)",
+                $"Depuis ta dernière optimisation Gaming, {string.Join(", ", drifted)} {(drifted.Count > 1 ? "sont revenus" : "est revenu")} à leur état non-optimisé — probablement après une mise à jour Windows ou un pilote GPU.",
+                "Réapplique le profil Gaming en un clic pour restaurer tes optimisations.",
+                IssueSeverity.Warning, "Performance", "reapply_drift"));
+        }
+        catch { }
+    }
+
+    // Sur CPU Intel hybride (12e-15e gen, cœurs Performance + Efficacité), Windows planifie parfois
+    // GTA5.exe/FiveM sur des cœurs Efficacité, ce qui casse le framerate par micro-freezes invisibles
+    // (souvent confondus avec un problème réseau ou de mods). L'app applique déjà automatiquement une
+    // priorité CPU élevée dès que FiveM/GTA V est détecté (Game Booster) — une vraie épingle sur les
+    // cœurs Performance précis nécessiterait de parser une structure Windows bas niveau non vérifiable
+    // sans le matériel hybride réel, donc on informe plutôt que d'appliquer un fix non testable.
+    private void CheckHybridCpu(List<DiagnosticIssue> issues)
+    {
+        try
+        {
+            if (!_corePinning.IsHybridCpu()) return;
+            issues.Add(new("CPU hybride Performance/Efficacité détecté",
+                "Ton CPU a des cœurs Performance et Efficacité — Windows place parfois GTA V/FiveM sur les mauvais cœurs, créant des micro-freezes invisibles souvent pris pour un problème réseau ou de mods.",
+                "L'app booste déjà automatiquement la priorité de FiveM/GTA V dès sa détection (onglet Gaming). Pour aller plus loin manuellement : Gestionnaire des tâches → clic droit sur FiveM_GTAProcess.exe → Définir l'affinité → décoche les derniers cœurs (Efficacité).",
+                IssueSeverity.Info, "Matériel"));
+        }
+        catch { }
+    }
+
+    // ── Diagnostics matériel avancés ─────────────────────────────────────────
+
+    private void CheckMemorySpeed(List<DiagnosticIssue> issues)
+    {
+        try
+        {
+            using var s = new ManagementObjectSearcher("SELECT Speed, ConfiguredClockSpeed FROM Win32_PhysicalMemory");
+            var modules = s.Get().Cast<ManagementObject>().ToList();
+            if (modules.Count == 0) return;
+
+            var speeds = modules.Select(m => Convert.ToInt32(m["Speed"] ?? 0)).Where(v => v > 0).ToList();
+            if (speeds.Count == 0) return;
+
+            // Sur un upgrade partiel (barrettes de vitesses nominales différentes), rated=Max et
+            // actual=Max calculés indépendamment n'ont plus aucun sens à comparer entre eux — on
+            // ne peut affirmer un "XMP désactivé" que si toutes les barrettes partagent la même
+            // vitesse nominale annoncée par le fabricant.
+            if (speeds.Distinct().Count() > 1)
+            {
+                issues.Add(new("Vitesses de RAM incompatibles entre barrettes",
+                    $"Les barrettes installées annoncent des vitesses nominales différentes ({string.Join(" / ", speeds.Distinct().OrderBy(v => v))} MT/s) — la RAM tourne au minimum commun.",
+                    "Pour de meilleures performances, utilisez des barrettes identiques (même vitesse, même capacité) plutôt qu'un kit mixte.",
+                    IssueSeverity.Info, "Matériel"));
+                return;
+            }
+
+            // Speed = vitesse nominale annoncée par le fabricant du module. ConfiguredClockSpeed =
+            // vitesse à laquelle Windows fait réellement tourner la RAM. Un écart net entre les deux
+            // suggère un profil XMP (Intel) / EXPO (AMD) non activé dans le BIOS — mais Win32_PhysicalMemory.Speed
+            // n'est pas garanti fiable à 100% selon le fabricant de carte mère, d'où un message prudent plutôt qu'affirmatif.
+            var rated  = speeds[0];
+            var actual = modules.Select(m => Convert.ToInt32(m["ConfiguredClockSpeed"] ?? 0)).DefaultIfEmpty(0).Max();
+            if (actual == 0) return;
+
+            if (actual < rated * 0.9)
+                issues.Add(new("RAM possiblement sous son potentiel (XMP/EXPO à vérifier)",
+                    $"Votre RAM est annoncée pour {rated} MT/s mais Windows la fait tourner à {actual} MT/s.",
+                    "Vérifiez le profil XMP (Intel) ou EXPO (AMD) dans le BIOS (touche Suppr ou F2 au démarrage, selon la carte mère) — l'activer peut apporter un vrai gain de performance, surtout en jeu.",
+                    IssueSeverity.Warning, "Matériel"));
+            else
+                issues.Add(new("RAM à pleine vitesse",
+                    $"La RAM tourne à sa vitesse nominale ({actual} MT/s).",
+                    "Aucune action requise.",
+                    IssueSeverity.Info, "Matériel"));
+        }
+        catch { }
+    }
+
+    private void CheckMemoryChannels(List<DiagnosticIssue> issues)
+    {
+        try
+        {
+            using var s = new ManagementObjectSearcher("SELECT Capacity FROM Win32_PhysicalMemory");
+            var capacities = s.Get().Cast<ManagementObject>()
+                .Select(m => Convert.ToInt64(m["Capacity"] ?? 0)).Where(c => c > 0).ToList();
+            var populated = capacities.Count;
+
+            // Une seule barrette = canal simple à coup sûr, quel que soit le nombre de slots sur
+            // la carte mère. Avec 2+ barrettes, on ne peut pas garantir un vrai double canal sans
+            // lire l'appariement exact des slots (BankLabel/DeviceLocator) — on ne signale donc que
+            // le cas certain plutôt que de risquer une fausse alerte.
+            if (populated == 1)
+                issues.Add(new("Une seule barrette de RAM (canal simple)",
+                    "Une seule barrette de RAM divise la bande passante mémoire par deux par rapport à une configuration double canal (deux barrettes identiques) — impact réel sur les performances, notamment avec un GPU intégré ou en jeu.",
+                    "Ajoutez une seconde barrette identique (même capacité, même vitesse) pour activer le double canal.",
+                    IssueSeverity.Warning, "Matériel"));
+            else if (populated >= 2 && capacities.Distinct().Count() > 1)
+                issues.Add(new("Capacités de RAM asymétriques entre barrettes",
+                    $"Les barrettes installées n'ont pas toutes la même capacité ({string.Join(" / ", capacities.Distinct().OrderBy(c => c).Select(c => $"{c / (1024 * 1024 * 1024)} Go"))}) — le double canal peut être partiellement désactivé sur une partie de la mémoire.",
+                    "Pour un vrai double canal sur toute la mémoire, utilisez des barrettes de capacité identique.",
+                    IssueSeverity.Info, "Matériel"));
+        }
+        catch { }
+    }
+
+    private void CheckMemoryIntegrity(List<DiagnosticIssue> issues)
+    {
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(
+                @"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity");
+            if (key?.GetValue("Enabled") is int v && v == 1)
+                issues.Add(new("Memory Integrity (isolation du noyau) activé",
+                    "Cette protection Windows renforce la sécurité mais peut coûter quelques pourcents de performances CPU/GPU selon votre matériel, surtout en jeu.",
+                    "Compromis sécurité/performance à arbitrer vous-même : Paramètres → Confidentialité et sécurité → Sécurité Windows → Isolation du noyau. Ne désactivez que si vous comprenez les implications de sécurité.",
+                    IssueSeverity.Info, "Matériel"));
+        }
+        catch { }
     }
 
     private void CheckRam(List<DiagnosticIssue> issues)
@@ -278,9 +416,14 @@ public class DiagnosticsService
             };
             proc.Start();
             var output = proc.StandardOutput.ReadToEnd();
-            proc.WaitForExit(3000);
+            bool exited = proc.WaitForExit(3000);
 
-            if (output.Contains("381b4222-f694-41f0-9685-ff5bb260df2e", StringComparison.OrdinalIgnoreCase))
+            if (!exited || string.IsNullOrWhiteSpace(output))
+            {
+                // powercfg n'a pas répondu à temps — on ne peut rien affirmer sur le plan actif.
+                AddPowerPlanUnknownIssue(issues);
+            }
+            else if (output.Contains("381b4222-f694-41f0-9685-ff5bb260df2e", StringComparison.OrdinalIgnoreCase))
                 issues.Add(new("Plan d'alimentation équilibré",
                     "Windows utilise le plan Équilibré — limite les performances du CPU.",
                     "Activez le plan Haute Performance dans l'onglet Gaming pour des meilleures performances.",
@@ -290,13 +433,29 @@ public class DiagnosticsService
                     "Windows utilise le plan Économie d'énergie — performances très réduites.",
                     "Passez au plan Haute Performance dans l'onglet Gaming immédiatement.",
                     IssueSeverity.Critical, "Performance", "high_perf"));
-            else
+            else if (output.Contains("8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c", StringComparison.OrdinalIgnoreCase)
+                  || output.Contains("e9a42b02-d5df-448d-aa00-03f14749eb61", StringComparison.OrdinalIgnoreCase))
                 issues.Add(new("Plan d'alimentation optimal",
                     "Plan Haute Performance ou Ultimate actif.",
                     "Performances CPU maximales.",
                     IssueSeverity.Info, "Performance"));
+            else
+                // GUID reconnu par aucun des plans connus (souvent un plan OEM personnalisé) —
+                // ne pas affirmer un état qu'on n'a pas vérifié.
+                issues.Add(new("Plan d'alimentation personnalisé",
+                    "Un plan d'alimentation non standard (OEM) est actif — ses performances réelles ne sont pas vérifiables automatiquement.",
+                    "Vérifiez manuellement dans Options d'alimentation si besoin de performances maximales.",
+                    IssueSeverity.Info, "Performance"));
         }
         catch { }
+    }
+
+    private static void AddPowerPlanUnknownIssue(List<DiagnosticIssue> issues)
+    {
+        issues.Add(new("Plan d'alimentation — état inconnu",
+            "Impossible de lire le plan d'alimentation actif (powercfg n'a pas répondu).",
+            "Réessayez l'analyse, ou vérifiez manuellement dans les Options d'alimentation Windows.",
+            IssueSeverity.Info, "Performance"));
     }
 
     private void CheckAntivirus(List<DiagnosticIssue> issues)
@@ -318,10 +477,21 @@ public class DiagnosticsService
             }
 
             if (avs.Count == 0 || !anyEnabled)
-                issues.Add(new("Aucun antivirus actif détecté",
-                    "Aucun antivirus actif n'a été trouvé sur ce PC.",
-                    "Activez Windows Defender ou installez un antivirus pour protéger votre PC.",
-                    IssueSeverity.Critical, "Sécurité", "windows_security"));
+            {
+                // SecurityCenter2 peut renvoyer 0 résultat juste après le démarrage, ou pour un
+                // AV/EDR géré en entreprise qui ne s'y enregistre pas — on croise avec le vrai
+                // statut du service Defender avant d'afficher une alerte Critical potentiellement fausse.
+                if (IsWindowsDefenderActive())
+                    issues.Add(new("Antivirus actif",
+                        "Windows Defender — protection active.",
+                        "Aucune action requise.",
+                        IssueSeverity.Info, "Sécurité"));
+                else
+                    issues.Add(new("Aucun antivirus actif détecté",
+                        "Aucun antivirus actif n'a été trouvé sur ce PC.",
+                        "Activez Windows Defender ou installez un antivirus pour protéger votre PC.",
+                        IssueSeverity.Critical, "Sécurité", "windows_security"));
+            }
             else
                 issues.Add(new("Antivirus actif",
                     $"{string.Join(", ", avs)} — protection active.",
@@ -329,6 +499,23 @@ public class DiagnosticsService
                     IssueSeverity.Info, "Sécurité"));
         }
         catch { }
+    }
+
+    private static bool IsWindowsDefenderActive()
+    {
+        try
+        {
+            using var s = new ManagementObjectSearcher(@"root\Microsoft\Windows\Defender",
+                "SELECT AntivirusEnabled, RealTimeProtectionEnabled FROM MSFT_MpComputerStatus");
+            foreach (var o in s.Get())
+            {
+                var avEnabled = o["AntivirusEnabled"] is bool b1 && b1;
+                var rtEnabled = o["RealTimeProtectionEnabled"] is bool b2 && b2;
+                if (avEnabled || rtEnabled) return true;
+            }
+        }
+        catch { }
+        return false;
     }
 
     private void CheckTempFolder(List<DiagnosticIssue> issues)
@@ -368,13 +555,21 @@ public class DiagnosticsService
             // Si la clé n'existe pas → DVR actif par défaut Windows
             bool enabled = gameDvrVal == null || Convert.ToInt32(gameDvrVal) != 0;
 
-            // Clé secondaire pour confirmation
-            using var kCapture = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR");
-            var appCapture = kCapture?.GetValue("AppCaptureEnabled");
-            bool captureEnabled = appCapture == null || Convert.ToInt32(appCapture) != 0;
-
-            // DVR est OFF seulement si les deux clés indiquent désactivé
-            bool dvrActive = enabled || captureEnabled;
+            // Clé secondaire, utilisée seulement si la clé primaire n'a jamais été configurée —
+            // sinon un utilisateur qui a désactivé DVR via le switch principal "Xbox Game Bar"
+            // (qui n'écrit QUE GameDVR_Enabled) se voit signalé à tort "DVR activé" à cause de
+            // cette clé secondaire absente qui défaut à "activé".
+            bool dvrActive;
+            if (gameDvrVal != null)
+            {
+                dvrActive = enabled;
+            }
+            else
+            {
+                using var kCapture = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR");
+                var appCapture = kCapture?.GetValue("AppCaptureEnabled");
+                dvrActive = appCapture == null || Convert.ToInt32(appCapture) != 0;
+            }
 
             if (dvrActive)
                 issues.Add(new("Xbox Game DVR activé",
@@ -487,23 +682,33 @@ public class DiagnosticsService
 
     private void CheckEventLogCrashes(List<DiagnosticIssue> issues)
     {
+        var since = DateTime.Now.AddDays(-7);
+        int realBsods = 0, unexpectedShutdowns = 0, appCrashes = 0;
+        bool systemLogOk = true, appLogOk = true;
+
+        // Journal Système : isolé dans son propre try/catch pour qu'un échec ici (service
+        // Journal d'événements arrêté/inaccessible) n'empêche pas de lire le journal Application.
         try
         {
-            var since = DateTime.Now.AddDays(-7);
-            int bsods  = 0;
-            int appCrashes = 0;
-
-            // BSOD : Kernel-Power EventID 41 + BugCheck 1001
             using var sysLog = new System.Diagnostics.EventLog("System");
             foreach (System.Diagnostics.EventLogEntry e in sysLog.Entries)
             {
                 if (e.TimeGenerated < since) continue;
-                if (e.EntryType == System.Diagnostics.EventLogEntryType.Error &&
-                    (e.InstanceId == 41 || e.InstanceId == 1001))
-                    bsods++;
+                if (e.EntryType != System.Diagnostics.EventLogEntryType.Error) continue;
+                // BSOD réel confirmé : source BugCheck (même filtre que BsodAnalyzerService).
+                if (e.InstanceId == 1001 && e.Source == "BugCheck")
+                    realBsods++;
+                // Arrêt inattendu (Kernel-Power 41) : peut être un BSOD sans dump, une coupure
+                // de courant ou un hard reset — pas forcément un écran bleu, à ne pas confondre.
+                else if (e.InstanceId == 41 && e.Source.Contains("Kernel-Power", StringComparison.OrdinalIgnoreCase))
+                    unexpectedShutdowns++;
             }
+        }
+        catch { systemLogOk = false; }
 
-            // Crashs applicatifs : Application EventID 1000
+        // Crashs applicatifs : Application EventID 1000
+        try
+        {
             using var appLog = new System.Diagnostics.EventLog("Application");
             foreach (System.Diagnostics.EventLogEntry e in appLog.Entries)
             {
@@ -511,24 +716,38 @@ public class DiagnosticsService
                 if (e.EntryType == System.Diagnostics.EventLogEntryType.Error && e.InstanceId == 1000)
                     appCrashes++;
             }
-
-            if (bsods > 0)
-                issues.Add(new($"{bsods} crash(s) système (BSOD) en 7 jours",
-                    $"Windows a planté {bsods} fois cette semaine avec un écran bleu. Causes fréquentes : pilote défaillant, RAM instable, surchauffe.",
-                    "Ouvrez l'Observateur d'événements → Journaux Windows → Système → cherchez les erreurs récentes ID 41 (Kernel-Power) pour identifier la cause.",
-                    IssueSeverity.Critical, "Stabilité", "event_viewer"));
-            else if (appCrashes > 5)
-                issues.Add(new($"{appCrashes} erreurs d'applications en 7 jours",
-                    $"{appCrashes} événements d'erreur détectés cette semaine dans les logs Windows (ID 1000). Peut inclure des erreurs mineures en arrière-plan.",
-                    "Ouvrez l'Observateur d'événements pour voir quelles applications sont concernées et les mettre à jour.",
-                    IssueSeverity.Warning, "Stabilité", "event_viewer"));
-            else
-                issues.Add(new("Aucun crash système détecté",
-                    $"Aucun BSOD en 7 jours. {appCrashes} crash(s) applicatif(s).",
-                    "Système stable.",
-                    IssueSeverity.Info, "Stabilité"));
         }
-        catch { }
+        catch { appLogOk = false; }
+
+        if (!systemLogOk && !appLogOk)
+        {
+            issues.Add(new("Stabilité — non vérifiable",
+                "Impossible d'accéder aux journaux d'événements Windows (Système et Application).",
+                "Vérifiez que le service 'Journal d'événements Windows' est démarré (services.msc).",
+                IssueSeverity.Info, "Stabilité"));
+            return;
+        }
+
+        if (realBsods > 0)
+            issues.Add(new($"{realBsods} crash(s) système (BSOD) confirmé(s) en 7 jours",
+                $"Windows a planté {realBsods} fois cette semaine avec un véritable écran bleu (BugCheck). Causes fréquentes : pilote défaillant, RAM instable, surchauffe.",
+                "Ouvrez l'Observateur d'événements → Journaux Windows → Système → cherchez les erreurs récentes source 'BugCheck' pour identifier la cause.",
+                IssueSeverity.Critical, "Stabilité", "event_viewer"));
+        else if (unexpectedShutdowns > 0)
+            issues.Add(new($"{unexpectedShutdowns} arrêt(s) inattendu(s) en 7 jours",
+                $"Windows s'est arrêté {unexpectedShutdowns} fois de façon inattendue cette semaine — cause possible : BSOD sans dump, coupure de courant, ou blocage système forçant un arrêt matériel. Aucun BSOD confirmé.",
+                "Si ça se reproduit souvent, vérifiez l'alimentation électrique et la stabilité matérielle (RAM, température).",
+                IssueSeverity.Warning, "Stabilité", "event_viewer"));
+        else if (appCrashes > 5)
+            issues.Add(new($"{appCrashes} erreurs d'applications en 7 jours",
+                $"{appCrashes} événements d'erreur détectés cette semaine dans les logs Windows (ID 1000). Peut inclure des erreurs mineures en arrière-plan.",
+                "Ouvrez l'Observateur d'événements pour voir quelles applications sont concernées et les mettre à jour.",
+                IssueSeverity.Warning, "Stabilité", "event_viewer"));
+        else
+            issues.Add(new("Aucun crash système détecté",
+                $"Aucun BSOD ni arrêt inattendu en 7 jours. {appCrashes} crash(s) applicatif(s).",
+                "Système stable.",
+                IssueSeverity.Info, "Stabilité"));
     }
 
     private static bool IsSuspicious(string name)

@@ -69,19 +69,31 @@ public class StartupManagerService
         catch { }
     }
 
+    // Clé composite Name+Source (deux entrées de même nom dans HKCU et HKLM ne se collisionnent plus)
+    // et valeur "Source|Command" pour restaurer dans la bonne ruche depuis Enable().
+    private static string DisabledKey(StartupEntry entry) => $"{entry.Source}::{entry.Name}";
+
     private static void ReadDisabled(List<StartupEntry> list)
     {
         try
         {
             using var k = Registry.CurrentUser.OpenSubKey(DisabledRoot);
             if (k == null) return;
-            foreach (var name in k.GetValueNames())
-                list.Add(new StartupEntry { Name = name, Command = k.GetValue(name)?.ToString() ?? "", Source = "Désactivé", Enabled = false });
+            foreach (var valueName in k.GetValueNames())
+            {
+                var raw = k.GetValue(valueName)?.ToString() ?? "";
+                var sepIdx = raw.IndexOf('|');
+                var origSource = sepIdx > 0 ? raw[..sepIdx] : "Utilisateur";
+                var command    = sepIdx > 0 ? raw[(sepIdx + 1)..] : raw;
+                var nameSepIdx = valueName.IndexOf("::", StringComparison.Ordinal);
+                var name       = nameSepIdx > 0 ? valueName[(nameSepIdx + 2)..] : valueName;
+                list.Add(new StartupEntry { Name = name, Command = command, Source = origSource, Enabled = false });
+            }
         }
         catch { }
     }
 
-    public void Disable(StartupEntry entry)
+    public bool Disable(StartupEntry entry)
     {
         try
         {
@@ -89,20 +101,28 @@ public class StartupManagerService
             using var k = root.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", writable: true);
             k?.DeleteValue(entry.Name, throwOnMissingValue: false);
             using var d = Registry.CurrentUser.CreateSubKey(DisabledRoot);
-            d.SetValue(entry.Name, entry.Command);
+            d.SetValue(DisabledKey(entry), $"{entry.Source}|{entry.Command}");
+            return true;
         }
-        catch { }
+        catch { return false; }
     }
 
-    public void Enable(StartupEntry entry)
+    public bool Enable(StartupEntry entry)
     {
         try
         {
-            using var k = Registry.CurrentUser.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run");
-            k.SetValue(entry.Name, entry.Command);
             using var d = Registry.CurrentUser.OpenSubKey(DisabledRoot, writable: true);
-            d?.DeleteValue(entry.Name, throwOnMissingValue: false);
+            var raw = d?.GetValue(DisabledKey(entry))?.ToString() ?? "";
+            var sepIdx = raw.IndexOf('|');
+            var origSource = sepIdx > 0 ? raw[..sepIdx] : entry.Source;
+            var command    = sepIdx > 0 ? raw[(sepIdx + 1)..] : entry.Command;
+
+            var root = origSource == "Système" ? Registry.LocalMachine : Registry.CurrentUser;
+            using var k = root.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run");
+            k.SetValue(entry.Name, command);
+            d?.DeleteValue(DisabledKey(entry), throwOnMissingValue: false);
+            return true;
         }
-        catch { }
+        catch { return false; }
     }
 }

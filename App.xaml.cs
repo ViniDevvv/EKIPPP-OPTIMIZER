@@ -32,17 +32,31 @@ public partial class App : Application
             ex.SetObserved();
         };
 
-        bool termsAccepted = CheckTermsAccepted();
-
-        var splash = new SplashWindow(!termsAccepted);
-        splash.Show();
-
-        bool proceed = await splash.CompletionTask;
-
-        if (!proceed)
+        if (e.Args.Contains("--auto-clean") || e.Args.Contains("--auto-analyze"))
         {
+            await RunHeadlessAsync(e.Args.Contains("--auto-clean") ? "--auto-clean" : "--auto-analyze");
             Shutdown();
             return;
+        }
+
+        bool termsAccepted = CheckTermsAccepted();
+
+        // Démarrage automatique Windows : lancement discret en tray, sauf si les CGU
+        // n'ont jamais été acceptées (ne jamais sauter cet écran, même en mode discret).
+        bool startMinimized = e.Args.Contains("--minimized") && termsAccepted;
+
+        if (!startMinimized)
+        {
+            var splash = new SplashWindow(!termsAccepted);
+            splash.Show();
+
+            bool proceed = await splash.CompletionTask;
+
+            if (!proceed)
+            {
+                Shutdown();
+                return;
+            }
         }
 
         if (!termsAccepted)
@@ -81,9 +95,34 @@ public partial class App : Application
 
         InitTray();
 
-        var main = new MainWindow();
+        var main = new MainWindow(!termsAccepted);
         MainWindow = main;
-        main.Show();
+        if (startMinimized)
+            ShowTrayBalloon();
+        else
+            main.Show();
+    }
+
+    private static async Task RunHeadlessAsync(string mode)
+    {
+        try
+        {
+            var license = new LicenseService();
+            if (!license.IsActivatedLocally()) return;
+
+            if (mode == "--auto-clean")
+            {
+                var cleaner = new CleanerService();
+                var cats = cleaner.ScanAll();
+                cleaner.Clean(cats);
+                cleaner.EmptyRecycleBin();
+            }
+            else
+            {
+                new DiagnosticsService().RunFullDiagnostics();
+            }
+        }
+        catch (Exception ex) { Dump("Headless", ex); }
     }
 
     private static bool CheckTermsAccepted()
@@ -114,14 +153,14 @@ public partial class App : Application
             var icon    = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
 
             var menu = new WinForms.ContextMenuStrip();
-            menu.Items.Add("Ouvrir EKIPPP Optimizer", null, (_, _) => ShowMainWindow());
+            menu.Items.Add("Ouvrir EKIPPP Optimisateur", null, (_, _) => ShowMainWindow());
             menu.Items.Add(new WinForms.ToolStripSeparator());
             menu.Items.Add("Quitter", null, (_, _) => ExplicitShutdown());
 
             _notifyIcon = new WinForms.NotifyIcon
             {
                 Icon             = icon,
-                Text             = "EKIPPP Optimizer",
+                Text             = "EKIPPP Optimisateur",
                 Visible          = true,
                 ContextMenuStrip = menu,
             };
@@ -136,7 +175,7 @@ public partial class App : Application
         _trayBalloonShown = true;
         try
         {
-            _notifyIcon.BalloonTipTitle = "EKIPPP Optimizer";
+            _notifyIcon.BalloonTipTitle = "EKIPPP Optimisateur";
             _notifyIcon.BalloonTipText  = "L'app tourne en arrière-plan. Double-cliquez sur l'icône pour rouvrir.";
             _notifyIcon.ShowBalloonTip(4000);
         }

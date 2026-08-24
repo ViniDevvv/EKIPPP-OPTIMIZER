@@ -165,7 +165,7 @@ public class GameCacheService
                 AttributesToSkip      = FileAttributes.ReparsePoint,
             };
             foreach (var fi in new DirectoryInfo(dir).EnumerateFiles("*", opts))
-                try { freed += fi.Length; fi.Delete(); } catch { }
+                try { var size = fi.Length; fi.Delete(); freed += size; } catch { }
             foreach (var d in new DirectoryInfo(dir).EnumerateDirectories("*", opts).Reverse())
                 try { d.Delete(true); } catch { }
         }

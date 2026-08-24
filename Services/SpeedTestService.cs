@@ -49,6 +49,15 @@ public record SpeedTestResult(
     };
 }
 
+public record BufferbloatResult(
+    long IdlePingMs, long LoadedPingMs, long IncreaseMs, string Grade, string GradeLabel,
+    bool IdleMeasured = true, bool LoadedMeasured = true)
+{
+    public string IdleLabel     => IdleMeasured                  ? $"{IdlePingMs} ms"   : "—";
+    public string LoadedLabel   => LoadedMeasured                ? $"{LoadedPingMs} ms" : "—";
+    public string IncreaseLabel => IdleMeasured && LoadedMeasured ? $"+{IncreaseMs} ms"  : "—";
+}
+
 public class SpeedTestService
 {
     private static readonly string[] DownloadUrls =
@@ -80,6 +89,116 @@ public class SpeedTestService
 
         return new SpeedTestResult(download, upload, pingMs, jitter, true);
     }
+
+    // Un ping à vide ne dit rien de la connexion en pleine partie : beaucoup de box/routeurs
+    // laissent la latence grimper fortement dès qu'un téléchargement sature la bande passante
+    // (bufferbloat). On mesure donc la latence au repos, PUIS pendant une saturation volontaire
+    // de la connexion, pour donner une note qui reflète l'usage réel en jeu.
+    public async Task<BufferbloatResult> MeasureBufferbloatAsync(IProgress<string>? progress = null)
+    {
+        const string host = "1.1.1.1";
+
+        progress?.Report("Mesure de la latence au repos…");
+        var idleSamples   = await PingSamplesAsync(host, 6, 150);
+        bool idleMeasured = idleSamples.Count > 0;
+        long idle         = idleMeasured ? (long)idleSamples.Average() : 0;
+        if (!idleMeasured)
+        {
+            var (httpPing, _) = await MeasureHttpLatencyAsync();
+            if (httpPing > 0) { idle = httpPing; idleMeasured = true; }
+        }
+
+        progress?.Report("Saturation de la connexion — mesure de la latence en charge…");
+        // Fenêtre totale généreuse : la boucle de pings "en charge" (8 échantillons, jusqu'à 1.5s
+        // chacun en cas de perte de paquets) doit rester intégralement couverte par le téléchargement
+        // de saturation, sinon les derniers échantillons mesurent une latence qui n'est plus "sous charge".
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(16));
+        var downloadTask = SaturateDownloadAsync(TimeSpan.FromSeconds(14), cts.Token);
+        await Task.Delay(400, CancellationToken.None); // laisse le débit monter avant de mesurer
+
+        var loadedSamples   = await PingSamplesAsync(host, 8, 150, cts.Token);
+        bool loadedMeasured = loadedSamples.Count > 0;
+        long loaded         = loadedMeasured ? (long)loadedSamples.Average() : 0;
+
+        try { await downloadTask; } catch { }
+
+        if (!idleMeasured && !loadedMeasured)
+            return new BufferbloatResult(0, 0, 0, "?",
+                "Latence non mesurable — ICMP et HTTP semblent bloqués sur ce réseau.", false, false);
+
+        // Perte de paquets totale pendant la saturation : c'est le pire scénario possible, pas
+        // une absence d'impact — surtout ne pas le confondre avec une augmentation de 0 ms/note A+.
+        if (!loadedMeasured)
+            return new BufferbloatResult(idle, 0, 0, "F",
+                "Perte de paquets totale sous charge — signe d'un bufferbloat sévère ou d'une connexion instable en pleine saturation.",
+                idleMeasured, false);
+
+        if (!idleMeasured)
+            return new BufferbloatResult(0, loaded, 0, "?",
+                "Latence au repos non mesurable — impossible de calculer l'augmentation sous charge.", false, true);
+
+        var increase = Math.Max(0, loaded - idle);
+        var (grade, label) = GradeBufferbloat(increase);
+        return new BufferbloatResult(idle, loaded, increase, grade, label, true, true);
+    }
+
+    private static async Task<List<long>> PingSamplesAsync(string host, int count, int delayMs, CancellationToken ct = default)
+    {
+        var samples = new List<long>();
+        try
+        {
+            using var ping = new Ping();
+            for (int i = 0; i < count; i++)
+            {
+                if (ct.IsCancellationRequested) break;
+                try
+                {
+                    var reply = await ping.SendPingAsync(host, 1500);
+                    if (reply.Status == IPStatus.Success) samples.Add(reply.RoundtripTime);
+                }
+                catch { }
+                if (i < count - 1)
+                {
+                    try { await Task.Delay(delayMs, ct); } catch (OperationCanceledException) { break; }
+                }
+            }
+        }
+        catch { }
+        return samples;
+    }
+
+    // Télécharge en boucle pendant la durée donnée pour saturer la connexion — peu importe le
+    // débit final, seul compte le fait de maintenir la ligne occupée pendant la mesure de ping.
+    private static async Task SaturateDownloadAsync(TimeSpan duration, CancellationToken token)
+    {
+        var endAt = DateTime.UtcNow + duration;
+        try
+        {
+            using var http = CreateHttpClient();
+            while (DateTime.UtcNow < endAt && !token.IsCancellationRequested)
+            {
+                try
+                {
+                    using var response = await http.GetAsync(DownloadUrls[0], HttpCompletionOption.ResponseHeadersRead, token);
+                    using var stream = await response.Content.ReadAsStreamAsync(token);
+                    var buffer = new byte[65536];
+                    while (DateTime.UtcNow < endAt && await stream.ReadAsync(buffer, token) > 0) { }
+                }
+                catch { break; }
+            }
+        }
+        catch { }
+    }
+
+    private static (string grade, string label) GradeBufferbloat(long increaseMs) => increaseMs switch
+    {
+        < 5   => ("A+", "Excellent — aucun impact même en pleine charge, idéal pour le jeu en ligne."),
+        < 30  => ("A",  "Très bon — impact quasi imperceptible en jeu."),
+        < 60  => ("B",  "Bon — léger à-coup possible si un gros téléchargement tourne en fond."),
+        < 200 => ("C",  "Moyen — pics de latence perceptibles en jeu si autre chose sature la connexion."),
+        < 400 => ("D",  "Faible — la box/le routeur souffre sous charge, le ping peut fortement grimper en jeu."),
+        _     => ("F",  "Très mauvais (bufferbloat sévère) — active le QoS / Smart Queue Management sur ta box si disponible."),
+    };
 
     // HttpClient sans proxy explicite : .NET utilise le proxy système Windows automatiquement (WinINet)
     private static HttpClient CreateHttpClient()
@@ -125,8 +244,10 @@ public class SpeedTestService
             }
             catch { }
 
+            // Pas de seuil de durée minimale : sur une connexion très rapide (fibre),
+            // le fichier peut être téléchargé entièrement en bien moins de 2s.
             double elapsed = sw.Elapsed.TotalSeconds;
-            if (elapsed >= 2.0 && totalBytes > 0)
+            if (totalBytes > 0 && elapsed > 0.1)
                 return totalBytes * 8.0 / (1024 * 1024) / elapsed;
         }
 
@@ -153,7 +274,7 @@ public class SpeedTestService
             await http.PostAsync(UploadUrl, content, cts.Token);
 
             double elapsed = sw.Elapsed.TotalSeconds;
-            double mbps    = elapsed > 0.5 ? dataSize * 8.0 / (1024 * 1024) / elapsed : 0;
+            double mbps    = elapsed > 0.05 ? dataSize * 8.0 / (1024 * 1024) / elapsed : 0;
             if (mbps > 0) progress.Report(($"↑ {mbps:F0} Mbps", mbps));
             return mbps;
         }

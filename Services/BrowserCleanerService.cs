@@ -87,6 +87,52 @@ public class BrowserCleanerService
         catch { return (0, 0, 0); }
     }
 
+    private static readonly Dictionary<string, string[]> ProcessNames = new()
+    {
+        ["Chrome"]   = ["chrome"],
+        ["Edge"]     = ["msedge"],
+        ["Brave"]    = ["brave"],
+        ["Vivaldi"]  = ["vivaldi"],
+        ["Opera"]    = ["opera"],
+        ["Opera GX"] = ["opera"],
+        ["Firefox"]  = ["firefox"],
+    };
+
+    // Nettoyer le cache d'un navigateur ouvert échoue silencieusement sur les fichiers verrouillés
+    // (cf. le même souci déjà rencontré sur la corbeille/Temp) — mieux vaut prévenir clairement
+    // l'utilisateur avant plutôt que de lui laisser croire que tout a été nettoyé.
+    public bool IsBrowserRunning(BrowserProfile p)
+    {
+        if (!ProcessNames.TryGetValue(p.Browser, out var names)) return false;
+        foreach (var n in names)
+        {
+            var procs = System.Diagnostics.Process.GetProcessesByName(n);
+            try
+            {
+                foreach (var proc in procs)
+                {
+                    // Opera et Opera GX partagent le même nom de process ("opera") : seul le
+                    // chemin de l'exécutable (dossier d'installation) permet de distinguer lequel tourne.
+                    if (p.Browser is "Opera" or "Opera GX")
+                    {
+                        string? exePath = TryGetMainModulePath(proc);
+                        if (exePath == null) continue;
+                        bool isGx = exePath.Contains("Opera GX", StringComparison.OrdinalIgnoreCase);
+                        if (p.Browser == "Opera GX" ? isGx : !isGx) return true;
+                    }
+                    else return true;
+                }
+            }
+            finally { foreach (var proc in procs) proc.Dispose(); }
+        }
+        return false;
+    }
+
+    private static string? TryGetMainModulePath(System.Diagnostics.Process proc)
+    {
+        try { return proc.MainModule?.FileName; } catch { return null; }
+    }
+
     // ── Nettoyage ─────────────────────────────────────────────────────────────
 
     public async Task<long> CleanCacheAsync(BrowserProfile p, IProgress<string>? prog = null) =>
@@ -161,7 +207,7 @@ public class BrowserCleanerService
         try
         {
             foreach (var f in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
-                try { freed += new FileInfo(f).Length; File.Delete(f); } catch { }
+                try { var size = new FileInfo(f).Length; File.Delete(f); freed += size; } catch { }
             foreach (var d in Directory.GetDirectories(dir).Reverse())
                 try { Directory.Delete(d, true); } catch { }
         }

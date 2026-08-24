@@ -61,12 +61,13 @@ public class ScheduledTaskService
 
     private static string BuildTaskXml(string name, string desc, string interval, string startTime, string args)
     {
-        var exePath = Process.GetCurrentProcess().MainModule?.FileName ?? "EKIPPP-OPTIMIZER.exe";
+        var exePath = System.Security.SecurityElement.Escape(Process.GetCurrentProcess().MainModule?.FileName ?? "EKIPPP-OPTIMIZER.exe");
+        var descXml = System.Security.SecurityElement.Escape(desc);
         return $"""
         <?xml version="1.0" encoding="UTF-16"?>
         <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
           <RegistrationInfo>
-            <Description>{desc}</Description>
+            <Description>{descXml}</Description>
           </RegistrationInfo>
           <Triggers>
             <CalendarTrigger>
@@ -83,6 +84,7 @@ public class ScheduledTaskService
             <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
             <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
             <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+            <WakeToRun>true</WakeToRun>
           </Settings>
           <Actions>
             <Exec>
@@ -96,12 +98,13 @@ public class ScheduledTaskService
 
     private static string BuildWeeklyTaskXml(string name, string desc, string args)
     {
-        var exePath = Process.GetCurrentProcess().MainModule?.FileName ?? "EKIPPP-OPTIMIZER.exe";
+        var exePath = System.Security.SecurityElement.Escape(Process.GetCurrentProcess().MainModule?.FileName ?? "EKIPPP-OPTIMIZER.exe");
+        var descXml = System.Security.SecurityElement.Escape(desc);
         return $"""
         <?xml version="1.0" encoding="UTF-16"?>
         <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
           <RegistrationInfo>
-            <Description>{desc}</Description>
+            <Description>{descXml}</Description>
           </RegistrationInfo>
           <Triggers>
             <CalendarTrigger>
@@ -119,6 +122,7 @@ public class ScheduledTaskService
           </Principals>
           <Settings>
             <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+            <WakeToRun>true</WakeToRun>
           </Settings>
           <Actions>
             <Exec>

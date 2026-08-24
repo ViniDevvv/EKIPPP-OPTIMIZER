@@ -71,6 +71,9 @@ public class AppUninstallerService
         return result.OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
+    // Codes de sortie considérés comme un succès : 0 = OK, 3010 = OK mais redémarrage requis.
+    private static bool IsSuccessExitCode(int code) => code == 0 || code == 3010;
+
     public async Task<bool> UninstallAsync(InstalledApp app)
     {
         return await Task.Run(() =>
@@ -90,8 +93,9 @@ public class AppUninstallerService
                         args += " /passive";
                     using var p = Process.Start(new ProcessStartInfo("msiexec.exe", args)
                         { UseShellExecute = true });
-                    p?.WaitForExit(120_000);
-                    return true;
+                    if (p == null) return false;
+                    bool exited = p.WaitForExit(120_000);
+                    return exited && IsSuccessExitCode(p.ExitCode);
                 }
 
                 // Quoted exe
@@ -104,15 +108,30 @@ public class AppUninstallerService
                     {
                         using var p = Process.Start(new ProcessStartInfo(exe, args)
                             { UseShellExecute = true });
-                        p?.WaitForExit(120_000);
-                        return true;
+                        if (p == null) return false;
+                        bool exited = p.WaitForExit(120_000);
+                        return exited && IsSuccessExitCode(p.ExitCode);
                     }
                 }
 
-                // Raw exe
-                using var proc = Process.Start(new ProcessStartInfo(str) { UseShellExecute = true });
-                proc?.WaitForExit(120_000);
-                return true;
+                // Exe brut sans guillemets, éventuellement suivi d'arguments (ex: "C:\...\uninstall.exe /S") —
+                // sépare le vrai chemin exécutable des arguments au lieu de tout passer comme FileName.
+                {
+                    string exe = str, args = "";
+                    if (!File.Exists(str))
+                    {
+                        var spaceIdx = str.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
+                        if (spaceIdx > 0)
+                        {
+                            exe  = str[..(spaceIdx + 4)];
+                            args = str.Length > spaceIdx + 4 ? str[(spaceIdx + 4)..].Trim() : "";
+                        }
+                    }
+                    using var proc = Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = true });
+                    if (proc == null) return false;
+                    bool exited = proc.WaitForExit(120_000);
+                    return exited && IsSuccessExitCode(proc.ExitCode);
+                }
             }
             catch { return false; }
         });
@@ -122,6 +141,15 @@ public class AppUninstallerService
     {
         return await Task.Run(() =>
         {
+            // Re-vérifie que l'app n'a plus d'entrée Uninstall avant de supprimer son dossier —
+            // évite de casser une app encore installée (cache UI pas rafraîchi, appel erroné).
+            bool stillInstalled = GetInstalledApps().Any(a => string.Equals(a.Name, app.Name, StringComparison.OrdinalIgnoreCase));
+            if (stillInstalled)
+            {
+                progress?.Report($"{app.Name} est toujours installé — nettoyage annulé.");
+                return 0L;
+            }
+
             long freed = 0;
             // Dossier d'installation
             if (app.HasLocation)
@@ -141,7 +169,15 @@ public class AppUninstallerService
         try
         {
             foreach (var f in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
-                try { freed += new FileInfo(f).Length; File.Delete(f); } catch { }
+            {
+                try
+                {
+                    var size = new FileInfo(f).Length;
+                    File.Delete(f);
+                    freed += size;
+                }
+                catch { }
+            }
             Directory.Delete(path, recursive: true);
         }
         catch { }

@@ -4,7 +4,10 @@ using System.Management;
 
 namespace EkipppOptimizer.Services;
 
-public record DriveHealth(string Model, string MediaType, long SizeGB, long FreeGB, int HealthPercent, string Status, bool IsSSD, long ReadSpeedMBs, long WriteSpeedMBs);
+public record DriveHealth(string Model, string MediaType, long SizeGB, long FreeGB, int HealthPercent, string Status, bool IsSSD, long ReadSpeedMBs, long WriteSpeedMBs)
+{
+    public string SpeedLabel => ReadSpeedMBs > 0 ? $"  ·  Lecture ~{ReadSpeedMBs} Mo/s" : "";
+}
 
 public record PartitionInfo(string Letter, string Label, long TotalGB, long FreeGB, bool IsSSD)
 {
@@ -69,9 +72,32 @@ public class StorageService
         return result;
     }
 
+    // Index du disque physique (Win32_DiskDrive.Index == MSFT_Disk.Number) → SSD, basé sur le
+    // MediaType officiel (fiable) plutôt que sur un filtrage de texte du nom de modèle.
+    private static Dictionary<int, bool> GetDiskIndexToSSDMap()
+    {
+        var map = new Dictionary<int, bool>();
+        try
+        {
+            var scope = new ManagementScope(@"\\.\ROOT\Microsoft\Windows\Storage");
+            scope.Connect();
+            using var s = new ManagementObjectSearcher(scope,
+                new ObjectQuery("SELECT Number, MediaType FROM MSFT_Disk"));
+            foreach (ManagementObject o in s.Get())
+            {
+                var number    = Convert.ToInt32(o["Number"] ?? -1);
+                var mediaType = Convert.ToInt32(o["MediaType"] ?? 0);
+                if (number >= 0) map[number] = mediaType == 4 || mediaType == 5;
+            }
+        }
+        catch { }
+        return map;
+    }
+
     private static Dictionary<string, bool> GetDriveLetterToSSDMap()
     {
-        var map = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        var map        = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        var diskBySsd  = GetDiskIndexToSSDMap();
         try
         {
             using var ldSearcher = new ManagementObjectSearcher(
@@ -92,7 +118,10 @@ public class StorageService
                                 $"ASSOCIATORS OF {{Win32_DiskPartition.DeviceID='{part["DeviceID"]}'}} WHERE AssocClass=Win32_DiskDriveToDiskPartition");
                             foreach (ManagementObject disk in diskSearcher.Get())
                             {
-                                map[letter] = IsSSDByModel(disk["Model"]?.ToString() ?? "");
+                                var index = Convert.ToInt32(disk["Index"] ?? -1);
+                                map[letter] = diskBySsd.TryGetValue(index, out var isSsd)
+                                    ? isSsd
+                                    : IsSSDByModel(disk["Model"]?.ToString() ?? "");
                                 break;
                             }
                         }
@@ -133,9 +162,10 @@ public class StorageService
                     1 => (50,  "⚠ Avertissement"),
                     _ => (10,  "✗ Problème détecté"),
                 };
+                // Vitesses non mesurées ici — 0 signale à l'UI d'afficher "non mesuré"
+                // plutôt qu'une valeur générique par type qui n'a rien à voir avec le disque réel.
                 result.Add(new DriveHealth(model, isSSD ? "SSD" : "HDD", sizeGB, 0,
-                    healthPct, healthLabel, isSSD,
-                    isSSD ? 550 : 130, isSSD ? 500 : 110));
+                    healthPct, healthLabel, isSSD, 0, 0));
             }
         }
         catch { }
@@ -153,13 +183,12 @@ public class StorageService
                     var status = o["Status"]?.ToString() ?? "OK";
                     var isSSD  = IsSSDByModel(model);
                     result.Add(new DriveHealth(model, isSSD ? "SSD" : "HDD", sizeGB, 0,
-                        0, status == "OK" ? "✓ OK" : "✗ Erreur", isSSD,
-                        isSSD ? 550 : 130, isSSD ? 500 : 110));
+                        0, status == "OK" ? "✓ OK" : "✗ Erreur", isSSD, 0, 0));
                 }
             }
             catch { }
         }
-        return result.Count > 0 ? result : [new DriveHealth("Disque principal", "HDD", 500, 0, 0, "✓ OK", false, 120, 100)];
+        return result;
     }
 
     // ── SMART ────────────────────────────────────────────────────────────────
@@ -209,7 +238,9 @@ public class StorageService
             {
                 progress.Report($"Écriture de {MB} Mo en cours…");
                 var sw = Stopwatch.StartNew();
-                using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None, Block))
+                // FileOptions.WriteThrough force l'écriture réelle sur le média (contourne le
+                // cache d'écriture Windows) pour que le débit mesuré soit celui du disque, pas de la RAM.
+                using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None, Block, FileOptions.WriteThrough))
                     for (int i = 0; i < MB * 1024 * 1024 / Block; i++) fs.Write(data, 0, Block);
                 sw.Stop();
                 writeMBs = sw.Elapsed.TotalSeconds > 0 ? (long)(MB / sw.Elapsed.TotalSeconds) : MB;

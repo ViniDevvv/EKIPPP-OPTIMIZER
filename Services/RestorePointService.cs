@@ -10,7 +10,7 @@ public record RestorePointResult(bool Success, string Message);
 
 public class RestorePointService
 {
-    public Task<RestorePointResult> CreateRestorePointAsync(string description = "EKIPPP-OPTIMIZER sauvegarde")
+    public Task<RestorePointResult> CreateRestorePointAsync(string description = "EKIPPP-OPTIMISATEUR sauvegarde")
     {
         return Task.Run(() =>
         {
@@ -31,11 +31,12 @@ public class RestorePointService
                 using var mc = new ManagementClass(scope, new ManagementPath("SystemRestore"), null);
                 mc.Get();
 
-                // Activer la protection système sur C:
+                // Activer la protection système sur le lecteur Windows réel (pas toujours C:)
                 try
                 {
+                    var sysDrive = System.IO.Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows)) ?? "C:\\";
                     var enableParams = mc.GetMethodParameters("Enable");
-                    enableParams["Drive"] = "C:\\";
+                    enableParams["Drive"] = sysDrive;
                     mc.InvokeMethod("Enable", enableParams, null);
                 }
                 catch { }
@@ -99,11 +100,10 @@ public class RestorePointService
                 try { if (tmpFile != null) System.IO.File.Delete(tmpFile); } catch { }
             }
 
-            // Fallback P/Invoke SRRemoveRestorePoint via srsclient.dll
+            // Fallback P/Invoke SRRemoveRestorePoint via srsclient.dll — 0 = succès (S_OK)
             try
             {
-                SRRemoveRestorePoint((uint)sequenceNumber);
-                return true;
+                return SRRemoveRestorePoint((uint)sequenceNumber) == 0;
             }
             catch { }
 

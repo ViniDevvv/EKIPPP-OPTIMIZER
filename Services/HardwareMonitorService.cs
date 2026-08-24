@@ -83,8 +83,11 @@ public class HardwareMonitorService : IDisposable
     public HardwareSnapshot Sample()
     {
         double cpu = 0, availMB = 0, diskR = 0, diskW = 0, netD = 0, netU = 0;
+        bool ramCounterOk = false;
         try { cpu     = _cpu?.NextValue()      ?? 0; } catch { }
-        try { availMB = _ramAvail?.NextValue() ?? 0; } catch { }
+        try { availMB = _ramAvail?.NextValue() ?? 0; ramCounterOk = _ramAvail != null; } catch { }
+        if (!ramCounterOk && TryGetMemoryStatus(out _, out var availBytes))
+            availMB = availBytes / (1024.0 * 1024);
         try { diskR   = (_diskRead?.NextValue()  ?? 0) / (1024 * 1024); } catch { }
         try { diskW   = (_diskWrite?.NextValue() ?? 0) / (1024 * 1024); } catch { }
         try { netD = _netRecvCounters.Sum(c => { try { return c.NextValue(); } catch { return 0f; } }) / 1024; } catch { }
@@ -125,7 +128,44 @@ public class HardwareMonitorService : IDisposable
                 return Convert.ToDouble(o["TotalVisibleMemorySize"]) / 1024.0;
         }
         catch { }
-        return 8192;
+
+        // Repli natif si WMI est indisponible (verrouillé, service corrompu…) — pas de valeur inventée.
+        if (TryGetMemoryStatus(out var totalBytes, out _))
+            return totalBytes / (1024.0 * 1024);
+
+        return 0;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct MEMORYSTATUSEX
+    {
+        public uint dwLength;
+        public uint dwMemoryLoad;
+        public ulong ullTotalPhys;
+        public ulong ullAvailPhys;
+        public ulong ullTotalPageFile;
+        public ulong ullAvailPageFile;
+        public ulong ullTotalVirtual;
+        public ulong ullAvailVirtual;
+        public ulong ullAvailExtendedVirtual;
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX lpBuffer);
+
+    private static bool TryGetMemoryStatus(out ulong totalBytes, out ulong availBytes)
+    {
+        totalBytes = 0; availBytes = 0;
+        try
+        {
+            var status = new MEMORYSTATUSEX { dwLength = (uint)System.Runtime.InteropServices.Marshal.SizeOf<MEMORYSTATUSEX>() };
+            if (!GlobalMemoryStatusEx(ref status)) return false;
+            totalBytes = status.ullTotalPhys;
+            availBytes = status.ullAvailPhys;
+            return true;
+        }
+        catch { return false; }
     }
 
     public void Dispose()

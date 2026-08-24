@@ -38,12 +38,23 @@ public partial class SplashWindow : Window
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
         };
         FillScale.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
-        LoadingLabel.Text = "Initialisation…";
 
-        await Task.Delay(1000);
-        LoadingLabel.Text = "Chargement des modules…";
-
-        await Task.Delay(800);
+        // Ce temps mort existait déjà (mêmes délais) — on l'habille en "mini scan" qui donne
+        // l'impression qu'un vrai diagnostic tourne pendant le chargement. Le score PC affiché
+        // juste après (une fois le Dashboard ouvert) en devient la conclusion logique.
+        string[] steps =
+        [
+            "Analyse du processeur…",
+            "Vérification de la RAM…",
+            "Contrôle de la santé disque…",
+            "Scan des processus actifs…",
+            "Calcul du score PC…",
+        ];
+        foreach (var step in steps)
+        {
+            LoadingLabel.Text = step;
+            await Task.Delay(360);
+        }
         LoadingLabel.Text = "Prêt !";
 
         await Task.Delay(400);

@@ -64,18 +64,9 @@ public class WindowsRepairService
     {
         try
         {
+            // app.manifest force requireAdministrator pour tout le process : pas besoin
+            // d'un Verb="runas" séparé, le process est déjà élevé.
             var psi = new ProcessStartInfo
-            {
-                FileName               = exe,
-                Arguments              = args,
-                UseShellExecute        = true,
-                Verb                   = "runas",
-                WindowStyle            = ProcessWindowStyle.Hidden,
-                CreateNoWindow         = true,
-            };
-
-            // Try without elevation first (some commands work without admin)
-            var psiNoElev = new ProcessStartInfo
             {
                 FileName               = exe,
                 Arguments              = args,
@@ -85,14 +76,22 @@ public class WindowsRepairService
                 CreateNoWindow         = true,
             };
 
-            using var process = Process.Start(psiNoElev);
+            using var process = Process.Start(psi);
             if (process == null) return $"Impossible de lancer {exe}";
             var output = await process.StandardOutput.ReadToEndAsync();
             var error  = await process.StandardError.ReadToEndAsync();
             await process.WaitForExitAsync();
             var result = !string.IsNullOrWhiteSpace(output) ? output : error;
+            result = result.Length > 500 ? result[..500] + "…" : result;
+
+            if (process.ExitCode != 0)
+            {
+                progress?.Report($"{exe}: échec (code {process.ExitCode})");
+                return $"[ÉCHEC, code {process.ExitCode}] {result}";
+            }
+
             progress?.Report($"{exe}: OK");
-            return result.Length > 500 ? result[..500] + "…" : result;
+            return result;
         }
         catch (Exception ex)
         {
