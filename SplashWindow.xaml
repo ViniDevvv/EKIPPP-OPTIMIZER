@@ -43,7 +43,7 @@
                        RenderOptions.BitmapScalingMode="HighQuality"/>
 
                 <!-- Nom de l'app -->
-                <TextBlock Text="O P T I M I Z E R" HorizontalAlignment="Center" FontSize="15"
+                <TextBlock Text="O P T I M I S A T E U R" HorizontalAlignment="Center" FontSize="15"
                            FontWeight="Bold" Foreground="#E2D9F3" Margin="0,0,0,0"/>
 
                 <!-- Trait décoratif -->
