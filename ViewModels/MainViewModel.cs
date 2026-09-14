@@ -1877,12 +1877,20 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool   _twCoreParking        = false;
     [ObservableProperty] private bool   _twMsiMode            = false;
     [ObservableProperty] private bool   _twFivemFullscreenOpt = false;
+    [ObservableProperty] private bool   _twHags               = false;
+    [ObservableProperty] private bool   _twTcpNoDelay         = false;
+    [ObservableProperty] private bool   _twGamesProfile       = false;
+    [ObservableProperty] private bool   _twGpuPreference      = false;
     [ObservableProperty] private string _fivemCacheStatus     = "";
     [ObservableProperty] private bool   _isFivemCacheBusy     = false;
 
     [RelayCommand] private void ToggleCoreParking()        { _optimizer.SetCoreParking(!TwCoreParking);                TwCoreParking        = !TwCoreParking;        Toast("Core Parking");                  ScheduleDiagRefresh(); }
     [RelayCommand] private void ToggleMsiMode()             { _optimizer.SetMsiMode(!TwMsiMode);                        TwMsiMode            = !TwMsiMode;            Toast("Mode MSI GPU");                  ScheduleDiagRefresh(); }
     [RelayCommand] private void ToggleFivemFullscreenOpt()  { _fivemBoost.SetFullscreenOptOff(!TwFivemFullscreenOpt);   TwFivemFullscreenOpt = !TwFivemFullscreenOpt; Toast("Optimisations plein écran FiveM"); }
+    [RelayCommand] private void ToggleHags()                { _optimizer.SetHagsEnabled(!TwHags);                       TwHags               = !TwHags;               Toast("Planification GPU matérielle (redémarrage requis)"); ScheduleDiagRefresh(); }
+    [RelayCommand] private void ToggleTcpNoDelay()          { _optimizer.SetTcpNoDelay(!TwTcpNoDelay);                  TwTcpNoDelay         = !TwTcpNoDelay;         Toast("Anti-Nagle réseau"); }
+    [RelayCommand] private void ToggleGamesProfile()        { _optimizer.SetGamesTaskProfile(!TwGamesProfile);          TwGamesProfile       = !TwGamesProfile;       Toast("Profil Windows \"Games\""); }
+    [RelayCommand] private void ToggleGpuPreference()       { _fivemBoost.SetGpuPreference(!TwGpuPreference);           TwGpuPreference      = !TwGpuPreference;      Toast("GPU dédié pour FiveM"); }
 
     [RelayCommand]
     private async Task CleanFivemCacheAsync()
@@ -1908,6 +1916,10 @@ public partial class MainViewModel : ObservableObject
         FivemSettingsFound    = s.SettingsFound;
         FivemGraphicsApplied  = s.BackupExists;
         TwFivemFullscreenOpt  = _fivemBoost.GetFullscreenOptOff();
+        TwGpuPreference       = _fivemBoost.GetGpuPreference();
+        TwHags                = _optimizer.GetHagsEnabled()       == TweakState.On;
+        TwGamesProfile        = _optimizer.GetGamesTaskProfile()  == TweakState.On;
+        TwTcpNoDelay          = _optimizer.GetTcpNoDelay()        == TweakState.On;
         FivemStatusMessage = !s.FiveMInstalled
             ? "FiveM non détecté sur ce PC."
             : !s.SettingsFound
@@ -1935,10 +1947,14 @@ public partial class MainViewModel : ObservableObject
             _optimizer.OptimizeTcp();
             _optimizer.SetCoreParking(true);
             _optimizer.SetMsiMode(true);
+            _optimizer.SetHagsEnabled(true);
+            _optimizer.SetTcpNoDelay(true);
+            _optimizer.SetGamesTaskProfile(true);
 
             // Volet processus — immédiat si FiveM tourne déjà, + flag de compatibilité ciblé.
             _fivemBoost.BoostRunningProcessNow();
             _fivemBoost.SetFullscreenOptOff(true);
+            _fivemBoost.SetGpuPreference(true);
 
             // Volet graphismes en jeu — le levier avec le plus d'impact réel sur les FPS.
             var result = _fivemBoost.ApplyFpsGraphicsPreset();
@@ -1951,7 +1967,7 @@ public partial class MainViewModel : ObservableObject
 
         FivemChangedSummary = changed.Count > 0 ? string.Join(" · ", changed) : "";
         FivemStatusMessage = changed.Count > 0
-            ? $"✓ Boost appliqué — {graphicsMsg} Priorité processus, DVR, GPU priority, mode MSI, core parking, plein écran et réseau optimisés côté Windows."
+            ? $"✓ Boost appliqué — {graphicsMsg} Priorité processus, DVR, GPU priority, GPU dédié, HAGS, profil Games, mode MSI, core parking, anti-Nagle, plein écran et réseau optimisés côté Windows."
             : $"Tweaks Windows appliqués. {graphicsMsg}";
         ShowToast?.Invoke("FiveM Boost", changed.Count > 0
             ? $"{changed.Count} réglage(s) graphique(s) + tweaks Windows appliqués ✓"
@@ -2448,7 +2464,7 @@ public partial class MainViewModel : ObservableObject
     // ══════════════════════════════════════════════════════════════════════════
     // MISE À JOUR & RAPPORT
     // ══════════════════════════════════════════════════════════════════════════
-    private const string AppVersion = "1.2.2";
+    private const string AppVersion = "1.3.0";
     public  string VersionDisplay   => $"v{AppVersion}";
     private const string UpdateUrl  = "https://ekippp.fr/optimizer/version.json";
 

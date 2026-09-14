@@ -464,6 +464,100 @@ public class WindowsOptimizerService
         return anyOk;
     }
 
+    // ── Planification GPU matérielle (HAGS) ──────────────────────────────────
+    // Laisse le GPU gérer lui-même sa file de commandes au lieu de passer par le scheduler logiciel
+    // Windows — réduit la latence sur les GPU/pilotes qui le supportent (Win10 2004+/Win11). Pur
+    // registre documenté par Microsoft. Nécessite un redémarrage pour prendre effet.
+    public TweakState GetHagsEnabled()
+    {
+        using var k = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\GraphicsDrivers");
+        var v = k?.GetValue("HwSchMode");
+        return v is int i ? (i == 2 ? TweakState.On : TweakState.Off) : TweakState.Unknown;
+    }
+    public bool SetHagsEnabled(bool enable)
+    {
+        try
+        {
+            using var k = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\GraphicsDrivers", writable: true);
+            k?.SetValue("HwSchMode", enable ? 2 : 1, RegistryValueKind.DWord);
+            return true;
+        }
+        catch { return false; }
+    }
+
+    // ── TCP NoDelay (anti-Nagle) ──────────────────────────────────────────────
+    // L'algorithme de Nagle regroupe les petits paquets avant envoi pour économiser la bande
+    // passante — au prix d'un délai pouvant aller jusqu'à 200ms, perceptible en jeu multijoueur
+    // sur des paquets de position/input très fréquents et minuscules. Clé registre documentée
+    // depuis Windows 2000, appliquée sur toutes les interfaces réseau actives.
+    public TweakState GetTcpNoDelay()
+    {
+        try
+        {
+            using var interfaces = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces");
+            if (interfaces == null) return TweakState.Unknown;
+            foreach (var name in interfaces.GetSubKeyNames())
+            {
+                using var k = interfaces.OpenSubKey(name);
+                var v = k?.GetValue("TCPNoDelay");
+                if (v is int i && i == 1) return TweakState.On;
+            }
+        }
+        catch { return TweakState.Unknown; }
+        return TweakState.Off;
+    }
+    public bool SetTcpNoDelay(bool enable)
+    {
+        bool anyOk = false;
+        try
+        {
+            using var interfaces = Registry.LocalMachine.OpenSubKey(
+                @"SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces", writable: true);
+            if (interfaces == null) return false;
+            foreach (var name in interfaces.GetSubKeyNames())
+            {
+                try
+                {
+                    using var k = interfaces.OpenSubKey(name, writable: true);
+                    if (k == null) continue;
+                    k.SetValue("TcpAckFrequency", enable ? 1 : 2, RegistryValueKind.DWord);
+                    k.SetValue("TCPNoDelay", enable ? 1 : 0, RegistryValueKind.DWord);
+                    anyOk = true;
+                }
+                catch { }
+            }
+        }
+        catch { }
+        return anyOk;
+    }
+
+    // ── Profil MMCSS "Games" ───────────────────────────────────────────────
+    // Windows priorise déjà les threads audio/jeu via MMCSS (Multimedia Class Scheduler Service),
+    // mais le profil "Games" par défaut n'utilise pas toujours la priorité GPU maximale. Clé
+    // registre officielle et documentée, utilisée par Windows lui-même pour tout process qui
+    // s'enregistre dans la catégorie "Games" (dont GTA V/FiveM).
+    private const string GamesTaskKey =
+        @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games";
+    public TweakState GetGamesTaskProfile()
+    {
+        using var k = Registry.LocalMachine.OpenSubKey(GamesTaskKey);
+        var v = k?.GetValue("GPU Priority");
+        return v is int i ? (i == 8 ? TweakState.On : TweakState.Off) : TweakState.Unknown;
+    }
+    public bool SetGamesTaskProfile(bool enable)
+    {
+        try
+        {
+            using var k = Registry.LocalMachine.CreateSubKey(GamesTaskKey);
+            k.SetValue("GPU Priority", enable ? 8 : 2, RegistryValueKind.DWord);
+            k.SetValue("Priority", enable ? 6 : 2, RegistryValueKind.DWord);
+            k.SetValue("Scheduling Category", enable ? "High" : "Medium", RegistryValueKind.String);
+            k.SetValue("SFIO Priority", enable ? "High" : "Normal", RegistryValueKind.String);
+            return true;
+        }
+        catch { return false; }
+    }
+
     private static string RunCmd(string exe, string args)
     {
         try

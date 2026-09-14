@@ -4297,13 +4297,13 @@
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" Margin="12,0,0,0">
                                             <TextBlock FontSize="12" Foreground="{StaticResource TxtSecond}" Margin="0,0,0,5" TextWrapping="Wrap">
-                                                <Run Text="🎯 " Foreground="#34D399"/><Run Text="DVR off + GPU priority + plein écran" FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}"/>
+                                                <Run Text="🎯 " Foreground="#34D399"/><Run Text="DVR off + GPU priority + GPU dédié + HAGS" FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}"/>
                                             </TextBlock>
-                                            <TextBlock Text="   Mêmes tweaks Windows que l'onglet Gaming, appliqués directement pour FiveM." FontSize="11" Foreground="{StaticResource TxtMuted}" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                            <TextBlock Text="   Tweaks Gaming + planification GPU matérielle + carte dédiée forcée sur les PC portables double GPU." FontSize="11" Foreground="{StaticResource TxtMuted}" Margin="0,0,0,8" TextWrapping="Wrap"/>
                                             <TextBlock FontSize="12" Foreground="{StaticResource TxtSecond}" Margin="0,0,0,5" TextWrapping="Wrap">
-                                                <Run Text="🌐 " Foreground="#34D399"/><Run Text="Réseau optimisé" FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}"/>
+                                                <Run Text="🌐 " Foreground="#34D399"/><Run Text="Réseau optimisé + anti-Nagle" FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}"/>
                                             </TextBlock>
-                                            <TextBlock Text="   Network Throttling désactivé + TCP optimisé — réduit les à-coups sur les serveurs RP peuplés." FontSize="11" Foreground="{StaticResource TxtMuted}" TextWrapping="Wrap"/>
+                                            <TextBlock Text="   Network Throttling désactivé + TCP optimisé + envoi immédiat des paquets — réduit les à-coups sur les serveurs RP peuplés." FontSize="11" Foreground="{StaticResource TxtMuted}" TextWrapping="Wrap"/>
                                         </StackPanel>
                                     </Grid>
                                 </StackPanel>
@@ -4320,7 +4320,15 @@
                                     <local:TweakRow Title="Mode MSI pour le GPU" Sub="Interruptions GPU en mode Message Signaled — réduit la micro-latence"
                                                     IsChecked="{Binding TwMsiMode}" Command="{Binding ToggleMsiModeCommand}"/>
                                     <local:TweakRow Title="Plein écran optimisé FiveM (ciblé)" Sub="Flag de compatibilité posé directement sur le processus FiveM, plus fiable que le tweak Gaming global"
-                                                    IsChecked="{Binding TwFivemFullscreenOpt}" Command="{Binding ToggleFivemFullscreenOptCommand}" IsLast="True"/>
+                                                    IsChecked="{Binding TwFivemFullscreenOpt}" Command="{Binding ToggleFivemFullscreenOptCommand}"/>
+                                    <local:TweakRow Title="GPU dédié pour FiveM" Sub="Force la carte graphique dédiée sur les PC portables double GPU — évite de tourner sur l'iGPU par erreur"
+                                                    IsChecked="{Binding TwGpuPreference}" Command="{Binding ToggleGpuPreferenceCommand}"/>
+                                    <local:TweakRow Title="Planification GPU matérielle (HAGS)" Sub="Le GPU gère sa propre file de commandes — réduit la latence (redémarrage requis pour prendre effet)"
+                                                    IsChecked="{Binding TwHags}" Command="{Binding ToggleHagsCommand}"/>
+                                    <local:TweakRow Title="Profil Windows &quot;Games&quot;" Sub="Priorité GPU/CPU maximale du planificateur multimédia Windows pour les jeux"
+                                                    IsChecked="{Binding TwGamesProfile}" Command="{Binding ToggleGamesProfileCommand}"/>
+                                    <local:TweakRow Title="Anti-Nagle réseau (TCP NoDelay)" Sub="Envoie les paquets réseau sans attendre — réduit le délai perçu en multijoueur"
+                                                    IsChecked="{Binding TwTcpNoDelay}" Command="{Binding ToggleTcpNoDelayCommand}" IsLast="True"/>
                                 </StackPanel>
                             </Border>
 

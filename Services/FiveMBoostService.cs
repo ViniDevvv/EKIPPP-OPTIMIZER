@@ -236,6 +236,61 @@ public class FiveMBoostService
         catch { return false; }
     }
 
+    // ── GPU dédié (utile sur laptop double GPU Intel/NVIDIA ou Intel/AMD) ────────────────────
+    // Sur un laptop avec carte graphique intégrée + dédiée, Windows peut lancer FiveM sur l'iGPU
+    // par défaut — perte de FPS massive et invisible pour l'utilisateur (aucune erreur, juste des
+    // performances mauvaises). Cette clé (Paramètres graphiques Windows > Performances élevées)
+    // force le GPU dédié pour ce .exe précis. Documentée par Microsoft, un seul REG_SZ par chemin
+    // d'exe — même stratégie double-chemin (lanceur + process réel) que SetFullscreenOptOff.
+    private const string GpuPrefKey = @"Software\Microsoft\DirectX\UserGpuPreference";
+
+    public bool SetGpuPreference(bool highPerformance)
+    {
+        var paths = new List<string>();
+        try
+        {
+            var launcher = Path.Combine(DataFolder, "FiveM.exe");
+            if (File.Exists(launcher)) paths.Add(launcher);
+        }
+        catch { }
+        try
+        {
+            var proc = GetGameProcess();
+            var running = proc?.MainModule?.FileName;
+            if (!string.IsNullOrEmpty(running) && !paths.Contains(running)) paths.Add(running);
+        }
+        catch { }
+
+        if (paths.Count == 0) return false;
+
+        bool anyOk = false;
+        foreach (var path in paths)
+        {
+            try
+            {
+                using var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(GpuPrefKey);
+                if (highPerformance) k.SetValue(path, "GpuPreference=2;", Microsoft.Win32.RegistryValueKind.String);
+                else k.DeleteValue(path, throwOnMissingValue: false);
+                anyOk = true;
+            }
+            catch { }
+        }
+        return anyOk;
+    }
+
+    public bool GetGpuPreference()
+    {
+        try
+        {
+            using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(GpuPrefKey);
+            if (k == null) return false;
+            var launcher = Path.Combine(DataFolder, "FiveM.exe");
+            var v = k.GetValue(launcher) as string;
+            return v != null && v.Contains("GpuPreference=2");
+        }
+        catch { return false; }
+    }
+
     private readonly PowerThrottlingService _powerThrottling = new();
 
     public (bool success, string message) BoostRunningProcessNow()
