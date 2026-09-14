@@ -50,21 +50,30 @@ public class FiveMBoostService
     private static string DataFolder =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FiveM", "FiveM.app");
 
+    // FiveM tourne sur le moteur GTA V "legacy" et réutilise donc son fichier de réglages
+    // graphiques natif — PAS un fichier propre à FiveM sous AppData. Il vit dans le dossier
+    // Documents (déjà correctement redirigé par SpecialFolder.MyDocuments si OneDrive/Documents
+    // est déplacé), exactement comme le vrai jeu Rockstar. Vérifié en conditions réelles :
+    // AppData\Local\FiveM\FiveM.app\data\GTA V\settings.xml n'existe jamais, même après des
+    // heures de jeu — c'est Documents\Rockstar Games\GTA V\settings.xml qui contient le vrai
+    // <graphics> (MSAA, ShadowQuality, ReflectionQuality, etc.).
+    private static string RockstarGamesFolder =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Rockstar Games");
+
     private static string BackupPath(string settingsPath) => settingsPath + ".ekippp-backup";
 
     public string? FindSettingsXml()
     {
         try
         {
-            var expected = Path.Combine(DataFolder, "data", "GTA V", "settings.xml");
+            var expected = Path.Combine(RockstarGamesFolder, "GTA V", "settings.xml");
             if (File.Exists(expected)) return expected;
 
-            var dataRoot = Path.Combine(DataFolder, "data");
-            if (!Directory.Exists(dataRoot)) return null;
+            if (!Directory.Exists(RockstarGamesFolder)) return null;
 
-            // Filet de sécurité si FiveM a changé l'emplacement exact : recherche bornée en
-            // profondeur (évite un scan disque complet involontaire).
-            foreach (var dir in Directory.EnumerateDirectories(dataRoot, "*", SearchOption.TopDirectoryOnly))
+            // Filet de sécurité si Rockstar a renommé le dossier (ex: "GTAV Enhanced") : recherche
+            // bornée en profondeur (évite un scan disque complet involontaire).
+            foreach (var dir in Directory.EnumerateDirectories(RockstarGamesFolder, "*", SearchOption.TopDirectoryOnly))
             {
                 var candidate = Path.Combine(dir, "settings.xml");
                 if (File.Exists(candidate)) return candidate;
