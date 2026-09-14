@@ -8,7 +8,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>EkipppOptimizer</RootNamespace>
     <AssemblyName>EKIPPP-OPTIMIZER</AssemblyName>
-    <Version>1.3.2</Version>
+    <Version>1.3.3</Version>
     <ApplicationIcon>Assets\logo.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <PublishSingleFile>true</PublishSingleFile>

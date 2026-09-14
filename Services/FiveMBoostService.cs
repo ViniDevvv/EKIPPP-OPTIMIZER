@@ -105,8 +105,15 @@ public class FiveMBoostService
     // retrouve donc par ce qui NE change PAS : c'est un descendant du lanceur FiveM.exe et il
     // tourne depuis le dossier de données FiveM — pas de P/Invoke, uniquement WMI (même pattern
     // que DriverService/HardwareMonitorService).
+    //
+    // Vérifié en conditions réelles : une liste d'EXCLUSION (noms connus à ignorer) est fragile —
+    // FiveM_DumpServer (un helper de crash-report, absent de la liste) s'est fait passer pour le
+    // jeu et a reçu la priorité/EcoQoS/GPU preference à SA place, laissant le vrai process de jeu
+    // sans aucun boost. Le nom "GTAProcess" est en revanche stable et documenté sur toutes les
+    // versions — critère POSITIF utilisé en priorité, la liste d'exclusion ne sert plus que de
+    // filet en dernier recours si ce nom venait à disparaître.
     private static readonly string[] KnownFiveMAuxiliaryNames =
-        ["FiveM", "CrashHandler", "crashpad_handler", "FiveM_Updater", "FiveM_BootstrapV2"];
+        ["FiveM", "CrashHandler", "crashpad_handler", "FiveM_Updater", "FiveM_BootstrapV2", "FiveM_DumpServer"];
 
     public static Process? GetGameProcess()
     {
@@ -125,20 +132,28 @@ public class FiveMBoostService
 
             var descendants = GetDescendantProcessIds(launcherIds);
             var dataFolder = DataFolder;
+            Process? pathFallback = null;
 
             foreach (var p in Process.GetProcesses())
             {
                 try
                 {
                     if (!descendants.Contains(p.Id)) continue;
+
+                    // Critère positif prioritaire : le vrai process de jeu contient toujours
+                    // "GTAProcess" dans son nom, quel que soit le numéro de build.
+                    if (p.ProcessName.Contains("GTAProcess", StringComparison.OrdinalIgnoreCase)) return p;
+
+                    if (pathFallback != null) continue; // dernier recours déjà trouvé, inutile de re-scanner
                     if (KnownFiveMAuxiliaryNames.Contains(p.ProcessName, StringComparer.OrdinalIgnoreCase)) continue;
 
                     var path = p.MainModule?.FileName;
                     if (string.IsNullOrEmpty(path)) continue;
-                    if (path.StartsWith(dataFolder, StringComparison.OrdinalIgnoreCase)) return p;
+                    if (path.StartsWith(dataFolder, StringComparison.OrdinalIgnoreCase)) pathFallback = p;
                 }
                 catch { } // accès refusé sur certains process — normal, on continue.
             }
+            if (pathFallback != null) return pathFallback;
         }
         catch { }
         return null;
