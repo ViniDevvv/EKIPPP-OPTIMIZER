@@ -224,39 +224,68 @@ public class StorageService
     }
 
     // ── Benchmark ────────────────────────────────────────────────────────────
+    // 3 passes, médiane retenue — une seule mesure de débit disque varie facilement de ~10% d'un
+    // essai à l'autre (cache, activité de fond, thermal), ce qui suffit à afficher un "gain" après
+    // optimisation qui n'est en réalité que du bruit de mesure. La médiane amortit ça sans la
+    // complexité d'un calcul de variance.
     public async Task<BenchmarkResult> BenchmarkAsync(IProgress<string> progress)
     {
         return await Task.Run(() =>
         {
-            var tmp   = Path.Combine(Path.GetTempPath(), "ekippp_bench.tmp");
-            const int MB    = 256;
-            const int Block = 4 * 1024 * 1024;
-            var data  = new byte[Block];
-            new Random(42).NextBytes(data);
-            long readMBs = 0, writeMBs = 0;
-            try
-            {
-                progress.Report($"Écriture de {MB} Mo en cours…");
-                var sw = Stopwatch.StartNew();
-                // FileOptions.WriteThrough force l'écriture réelle sur le média (contourne le
-                // cache d'écriture Windows) pour que le débit mesuré soit celui du disque, pas de la RAM.
-                using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None, Block, FileOptions.WriteThrough))
-                    for (int i = 0; i < MB * 1024 * 1024 / Block; i++) fs.Write(data, 0, Block);
-                sw.Stop();
-                writeMBs = sw.Elapsed.TotalSeconds > 0 ? (long)(MB / sw.Elapsed.TotalSeconds) : MB;
+            const int Passes = 3;
+            var reads  = new List<long>();
+            var writes = new List<long>();
 
-                progress.Report($"Écriture : {writeMBs} Mo/s  ·  Lecture en cours…");
-                var buf = new byte[Block];
-                sw.Restart();
-                using (var fs = new FileStream(tmp, FileMode.Open, FileAccess.Read, FileShare.None, Block))
-                    while (fs.Read(buf, 0, Block) > 0) { }
-                sw.Stop();
-                readMBs = sw.Elapsed.TotalSeconds > 0 ? (long)(MB / sw.Elapsed.TotalSeconds) : MB;
+            for (int pass = 1; pass <= Passes; pass++)
+            {
+                progress.Report($"Passe {pass}/{Passes}…");
+                var (r, w) = RunSinglePass();
+                if (r > 0) reads.Add(r);
+                if (w > 0) writes.Add(w);
             }
-            catch { }
-            finally { try { File.Delete(tmp); } catch { } }
+
+            long readMBs  = Median(reads);
+            long writeMBs = Median(writes);
+            progress.Report($"Terminé — médiane sur {Passes} passes.");
             return new BenchmarkResult(readMBs, writeMBs);
         });
+    }
+
+    private static long Median(List<long> values)
+    {
+        if (values.Count == 0) return 0;
+        var sorted = values.OrderBy(v => v).ToList();
+        return sorted[sorted.Count / 2];
+    }
+
+    private static (long readMBs, long writeMBs) RunSinglePass()
+    {
+        var tmp   = Path.Combine(Path.GetTempPath(), $"ekippp_bench_{Guid.NewGuid():N}.tmp");
+        const int MB    = 256;
+        const int Block = 4 * 1024 * 1024;
+        var data  = new byte[Block];
+        new Random(42).NextBytes(data);
+        long readMBs = 0, writeMBs = 0;
+        try
+        {
+            var sw = Stopwatch.StartNew();
+            // FileOptions.WriteThrough force l'écriture réelle sur le média (contourne le
+            // cache d'écriture Windows) pour que le débit mesuré soit celui du disque, pas de la RAM.
+            using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None, Block, FileOptions.WriteThrough))
+                for (int i = 0; i < MB * 1024 * 1024 / Block; i++) fs.Write(data, 0, Block);
+            sw.Stop();
+            writeMBs = sw.Elapsed.TotalSeconds > 0 ? (long)(MB / sw.Elapsed.TotalSeconds) : MB;
+
+            var buf = new byte[Block];
+            sw.Restart();
+            using (var fs = new FileStream(tmp, FileMode.Open, FileAccess.Read, FileShare.None, Block))
+                while (fs.Read(buf, 0, Block) > 0) { }
+            sw.Stop();
+            readMBs = sw.Elapsed.TotalSeconds > 0 ? (long)(MB / sw.Elapsed.TotalSeconds) : MB;
+        }
+        catch { }
+        finally { try { File.Delete(tmp); } catch { } }
+        return (readMBs, writeMBs);
     }
 
     // ── Gros fichiers ─────────────────────────────────────────────────────────

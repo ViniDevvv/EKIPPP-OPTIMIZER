@@ -57,6 +57,26 @@ public class ServiceOptimizerService
         return results;
     }
 
+    // IsOptimized (ci-dessus) n'est qu'un drapeau mémoire/registre — vrai juste après
+    // OptimizeForGaming(), mais jamais revérifié : si Windows Update, un pilote ou l'utilisateur
+    // relance un des services à la main pendant que l'app tourne (ou après un précédent crash),
+    // IsOptimized reste "true" indéfiniment sans rapport avec la réalité. Cette méthode relit
+    // l'état RÉEL des services qu'on a nous-mêmes arrêtés.
+    public bool CheckActuallyOptimized()
+    {
+        if (_stoppedByUs.Count == 0) return false;
+        foreach (var name in _stoppedByUs.Keys)
+        {
+            try
+            {
+                using var svc = new ServiceController(name);
+                if (svc.Status == ServiceControllerStatus.Stopped) return true;
+            }
+            catch { }
+        }
+        return false;
+    }
+
     public void RestoreServices()
     {
         foreach (var name in _stoppedByUs.Keys)

@@ -61,6 +61,7 @@ public class DiagnosticsService
         CheckGameDvr(issues);
         CheckNetworkThrottling(issues);
         CheckUnsignedDrivers(issues);
+        CheckGpuDriver(issues);
         CheckBackgroundProcesses(issues);
         CheckSuspiciousProcesses(issues);
         CheckEventLogCrashes(issues);
@@ -630,6 +631,56 @@ public class DiagnosticsService
                     "Aucun pilote non signé détecté.",
                     "Aucune action requise.",
                     IssueSeverity.Info, "Pilotes"));
+        }
+        catch { }
+    }
+
+    // Deux signaux distincts, tous deux invisibles dans le Gestionnaire de périphériques tant
+    // qu'on ne sait pas où regarder : (1) le pilote "Microsoft Basic Display Adapter" générique
+    // qui reste actif sur un vrai GPU NVIDIA/AMD/Intel après une réinstallation Windows — souvent
+    // le plus gros manque à gagner en FPS puisque le GPU tourne sans accélération réelle ; (2) un
+    // pilote GPU dédié mais simplement trop ancien pour connaître les optimisations des jeux
+    // récents. Purement informatif : on ne touche jamais aux pilotes automatiquement.
+    private void CheckGpuDriver(List<DiagnosticIssue> issues)
+    {
+        try
+        {
+            using var s = new ManagementObjectSearcher(
+                "SELECT DeviceName, DriverDate, DriverProviderName, Manufacturer FROM Win32_PnPSignedDriver WHERE DeviceClass='Display'");
+            foreach (var o in s.Get())
+            {
+                var name     = o["DeviceName"]?.ToString() ?? "";
+                var provider = o["DriverProviderName"]?.ToString() ?? o["Manufacturer"]?.ToString() ?? "";
+                var dateStr  = o["DriverDate"]?.ToString();
+
+                bool isGenericOnRealGpu = provider.Contains("Microsoft", StringComparison.OrdinalIgnoreCase)
+                    && (name.Contains("NVIDIA", StringComparison.OrdinalIgnoreCase)
+                     || name.Contains("AMD", StringComparison.OrdinalIgnoreCase)
+                     || name.Contains("Radeon", StringComparison.OrdinalIgnoreCase)
+                     || name.Contains("Intel", StringComparison.OrdinalIgnoreCase));
+
+                if (isGenericOnRealGpu)
+                {
+                    issues.Add(new("Pilote GPU générique actif",
+                        $"« {name} » tourne avec le pilote d'affichage générique de Microsoft, pas son vrai pilote — le GPU fonctionne sans accélération correcte. Ça arrive typiquement après une réinstallation de Windows.",
+                        "Installe le vrai pilote depuis le site du fabricant (NVIDIA/AMD/Intel) — souvent le plus gros gain de FPS disponible.",
+                        IssueSeverity.Warning, "Pilotes"));
+                    continue;
+                }
+
+                DateTime? driverDate = null;
+                if (!string.IsNullOrEmpty(dateStr))
+                {
+                    try { driverDate = ManagementDateTimeConverter.ToDateTime(dateStr); } catch { }
+                }
+                if (driverDate.HasValue && driverDate.Value < DateTime.Now.AddMonths(-18))
+                {
+                    issues.Add(new("Pilote GPU ancien",
+                        $"Le pilote de « {name} » date du {driverDate.Value:dd/MM/yyyy}. Les optimisations spécifiques aux jeux récents arrivent avec les mises à jour de pilote.",
+                        "Mets à jour le pilote graphique depuis le site du fabricant ou son utilitaire (GeForce Experience, AMD Software, Intel Driver & Support).",
+                        IssueSeverity.Info, "Pilotes"));
+                }
+            }
         }
         catch { }
     }

@@ -33,7 +33,12 @@ public class GameBoosterService
         // MMO / RPG
         "wow","WoWClassic","ffxiv_dx11","LeagueOfLegends","League Of Legends",
         "dota2","TFT","PathOfExile","PathOfExile2","Diablo IV","Diablo4",
-        // FiveM / RAGE
+        // FiveM / RAGE — "FiveM" doit rester une entrée À PART de "FiveM_GTAProcess" : le vrai
+        // process de jeu s'appelle "FiveM_b<build>_GTAProcess.exe", le numéro de build change à
+        // chaque mise à jour du client, et c'est UNIQUEMENT ce préfixe "FiveM" qui continue à le
+        // détecter via StartsWith ci-dessous (IsGameProcess). Ne pas le retirer en pensant
+        // dédupliquer — voir FiveMBoostService.GetGameProcess() pour la détection non-fragile
+        // utilisée hors de cette boucle de surveillance.
         "FiveM","FiveM_GTAProcess","GTA5","fivem-win32-release",
         // Sport / Course
         "FIFA23","FIFA24","FC24","eafc","NFS","nfs","F12023","F12024","Forza",
@@ -68,6 +73,7 @@ public class GameBoosterService
         "RadeonSoftware", "CNext", "cnext",
     ];
 
+    private readonly PowerThrottlingService _powerThrottling = new();
     private List<(Process proc, ProcessPriorityClass prevPriority)> _boostedProcesses = [];
     private System.Timers.Timer? _watchTimer;
     private DateTime? _sessionStart;
@@ -91,6 +97,7 @@ public class GameBoosterService
                 if (!IsGameProcess(p.ProcessName)) continue;
                 var prev = p.PriorityClass;
                 p.PriorityClass = ProcessPriorityClass.High;
+                _powerThrottling.ClearEfficiencyMode(p.Handle);
                 results.Add(new BoostResult(p.ProcessName, p.Id, true, $"Priorité élevée appliquée (était: {prev})"));
                 _boostedProcesses.Add((p, prev));
             }
@@ -140,6 +147,7 @@ public class GameBoosterService
                     {
                         var prev = p.PriorityClass;
                         p.PriorityClass = ProcessPriorityClass.High;
+                        _powerThrottling.ClearEfficiencyMode(p.Handle);
                         _boostedProcesses.Add((p, prev));
                         if (_sessionStart == null)
                         {
@@ -182,7 +190,8 @@ public class GameBoosterService
         _boostedProcesses.Clear();
     }
 
-    private static bool IsGameProcess(string name)
+    // Public : réutilisé par RamOptimizerService pour ne jamais dégraisser un jeu en cours.
+    public static bool IsGameProcess(string name)
         => KnownGames.Contains(name)
         || KnownGames.Any(k => name.StartsWith(k, StringComparison.OrdinalIgnoreCase));
 

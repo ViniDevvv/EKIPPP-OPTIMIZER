@@ -625,6 +625,15 @@
                                 </StackPanel>
                             </Button>
 
+                            <Button Style="{StaticResource NavBtn}" x:Name="Btn14"
+                                    Command="{Binding SelectTabCommand}" CommandParameter="14">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="🏁" Width="20" FontSize="12"
+                                               Foreground="#34D399" VerticalAlignment="Center"/>
+                                    <TextBlock Text="FiveM Boost" FontSize="13" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+
                             <Button Style="{StaticResource NavBtn}" x:Name="Btn9"
                                     Command="{Binding SelectTabCommand}" CommandParameter="9">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -4176,6 +4185,213 @@
                                     </TextBlock>
                                 </StackPanel>
                             </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- TAB 14 — FIVEM BOOST -->
+                    <ScrollViewer x:Name="Tab14Panel" Visibility="Collapsed"
+                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="28,24,28,24">
+                            <TextBlock Text="FiveM Boost" Style="{StaticResource PageTitle}"/>
+                            <TextBlock Text="Optimisations spécifiques FiveM pour de vrais gains de FPS : réglages graphiques en jeu, priorité processus et tweaks réseau ciblés." Style="{StaticResource PageSub}"/>
+
+                            <!-- Disclaimer — seul onglet à toucher un fichier du jeu -->
+                            <Border Background="#0D0A1A" BorderBrush="#2D1B4E" BorderThickness="1"
+                                    CornerRadius="8" Padding="14,12" Margin="0,0,0,16">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="ℹ" FontSize="16" Foreground="#A78BFA"
+                                               VerticalAlignment="Top" Margin="0,1,12,0"/>
+                                    <TextBlock Grid.Column="1" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TxtSecond}">
+                                        <Run FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}">Important — </Run>
+                                        <Run>Contrairement aux autres onglets, le bouton "Optimiser les graphismes" modifie le fichier de réglages graphiques de FiveM (pas seulement Windows). Une sauvegarde automatique est créée avant toute modification — restaure tes réglages d'origine en un clic à tout moment ci-dessous.</Run>
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
+
+                            <!-- ══ BOOST FIVEM ═══════════════════════════════════════ -->
+                            <Border Margin="0,0,0,12">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background"    Value="#1A1028"/>
+                                        <Setter Property="CornerRadius"  Value="14"/>
+                                        <Setter Property="Padding"       Value="22,18"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                        <Setter Property="BorderBrush"   Value="#3D2860"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding FivemGraphicsApplied}" Value="True">
+                                                <Setter Property="BorderBrush" Value="#34D399"/>
+                                                <Setter Property="Background"  Value="#0F2419"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                            <TextBlock Text="🏁 BOOST FIVEM" FontSize="16" FontWeight="Bold"
+                                                       Foreground="#34D399"/>
+                                            <Border Background="#34D399" CornerRadius="4" Padding="7,2" Margin="10,0,0,0"
+                                                    Visibility="{Binding FivemGraphicsApplied, Converter={StaticResource BoolToVis}}">
+                                                <TextBlock Text="APPLIQUÉ" FontSize="11" FontWeight="Bold" Foreground="#0A1F14"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding FivemStatusMessage}" FontSize="12"
+                                                   Foreground="{StaticResource TxtSecond}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                        <TextBlock Text="{Binding FivemChangedSummary}" FontSize="11"
+                                                   Foreground="#34D399" TextWrapping="Wrap">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding FivemChangedSummary}" Value="">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" VerticalAlignment="Center" MinWidth="180" Height="42"
+                                            Margin="16,0,0,0" Command="{Binding ApplyFivemBoostCommand}"
+                                            IsEnabled="{Binding FivemBusy, Converter={StaticResource InvBool}}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource PrimaryBtn}">
+                                                <Setter Property="Content" Value="🏁 Optimiser les graphismes"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding FivemBusy}" Value="True">
+                                                        <Setter Property="Content" Value="Application…"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </Grid>
+                            </Border>
+
+                            <!-- ══ CE QUI EST OPTIMISÉ ═══════════════════════════════ -->
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="CE QUE FAIT LE BOOST" Style="{StaticResource MetricLabel}" Margin="0,0,0,10"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock FontSize="12" Foreground="{StaticResource TxtSecond}" Margin="0,0,0,5" TextWrapping="Wrap">
+                                                <Run Text="🎮 " Foreground="#34D399"/><Run Text="Réglages graphiques en jeu" FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}"/>
+                                            </TextBlock>
+                                            <TextBlock Text="   MSAA, reflets, ombres, particules, herbe et distance de population réduits — le levier le plus efficace pour les FPS, bien avant les réglages Windows." FontSize="11" Foreground="{StaticResource TxtMuted}" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                            <TextBlock FontSize="12" Foreground="{StaticResource TxtSecond}" Margin="0,0,0,5" TextWrapping="Wrap">
+                                                <Run Text="⚡ " Foreground="#34D399"/><Run Text="Priorité processus → HAUTE" FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}"/>
+                                            </TextBlock>
+                                            <TextBlock Text="   Appliquée immédiatement si FiveM est déjà lancé." FontSize="11" Foreground="{StaticResource TxtMuted}" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                                            <TextBlock FontSize="12" Foreground="{StaticResource TxtSecond}" Margin="0,0,0,5" TextWrapping="Wrap">
+                                                <Run Text="🎯 " Foreground="#34D399"/><Run Text="DVR off + GPU priority + plein écran" FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}"/>
+                                            </TextBlock>
+                                            <TextBlock Text="   Mêmes tweaks Windows que l'onglet Gaming, appliqués directement pour FiveM." FontSize="11" Foreground="{StaticResource TxtMuted}" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                            <TextBlock FontSize="12" Foreground="{StaticResource TxtSecond}" Margin="0,0,0,5" TextWrapping="Wrap">
+                                                <Run Text="🌐 " Foreground="#34D399"/><Run Text="Réseau optimisé" FontWeight="SemiBold" Foreground="{StaticResource TxtPrimary}"/>
+                                            </TextBlock>
+                                            <TextBlock Text="   Network Throttling désactivé + TCP optimisé — réduit les à-coups sur les serveurs RP peuplés." FontSize="11" Foreground="{StaticResource TxtMuted}" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- ══ TWEAKS AVANCÉS FIVEM ═════════════════════════════ -->
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="TWEAKS AVANCÉS FIVEM" Style="{StaticResource MetricLabel}" Margin="0,0,0,8"/>
+                                    <TextBlock FontSize="12" Foreground="{StaticResource TxtMuted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                                               Text="Appliqués automatiquement par le Boost ci-dessus. Réversibles individuellement ici à tout moment."/>
+                                    <local:TweakRow Title="Désactiver le Core Parking" Sub="Empêche Windows de mettre des cœurs CPU en veille — réduit les micro-saccades"
+                                                    IsChecked="{Binding TwCoreParking}" Command="{Binding ToggleCoreParkingCommand}"/>
+                                    <local:TweakRow Title="Mode MSI pour le GPU" Sub="Interruptions GPU en mode Message Signaled — réduit la micro-latence"
+                                                    IsChecked="{Binding TwMsiMode}" Command="{Binding ToggleMsiModeCommand}"/>
+                                    <local:TweakRow Title="Plein écran optimisé FiveM (ciblé)" Sub="Flag de compatibilité posé directement sur le processus FiveM, plus fiable que le tweak Gaming global"
+                                                    IsChecked="{Binding TwFivemFullscreenOpt}" Command="{Binding ToggleFivemFullscreenOptCommand}" IsLast="True"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- ══ CACHE FIVEM ═══════════════════════════════════════ -->
+                            <Border Style="{StaticResource Card}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="Nettoyer le cache FiveM" FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource TxtPrimary}"/>
+                                        <TextBlock Text="Un cache de streaming corrompu ou trop volumineux cause du pop-in et des chutes de FPS sur les serveurs RP chargés."
+                                                   Foreground="{StaticResource TxtMuted}" FontSize="13" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                        <TextBlock Text="{Binding FivemCacheStatus}" FontSize="12"
+                                                   Foreground="#34D399" Margin="0,5,0,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding FivemCacheStatus}" Value="">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" VerticalAlignment="Center" MinWidth="150" Height="36"
+                                            Style="{StaticResource PrimaryBtn}"
+                                            Command="{Binding CleanFivemCacheCommand}"
+                                            IsEnabled="{Binding IsFivemCacheBusy, Converter={StaticResource InvBool}}">
+                                        <Button.Content>
+                                            <TextBlock>
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="Nettoyer"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsFivemCacheBusy}" Value="True">
+                                                                <Setter Property="Text" Value="En cours…"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Button.Content>
+                                    </Button>
+                                </Grid>
+                            </Border>
+
+                            <!-- ══ RESTAURATION ══════════════════════════════════════ -->
+                            <Border Style="{StaticResource Card}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="Restaurer les réglages graphiques d'origine" FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource TxtPrimary}"/>
+                                        <TextBlock Text="Annule les réglages graphiques FiveM — les tweaks avancés ci-dessus et ceux de l'onglet Gaming restent réversibles individuellement."
+                                                   Foreground="{StaticResource TxtMuted}" FontSize="13" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" VerticalAlignment="Center" MinWidth="150" Height="36"
+                                            Style="{StaticResource SecBtn}" Content="Restaurer"
+                                            Command="{Binding RestoreFivemGraphicsCommand}"
+                                            IsEnabled="{Binding FivemGraphicsApplied}"/>
+                                </Grid>
+                            </Border>
+
                         </StackPanel>
                     </ScrollViewer>
 

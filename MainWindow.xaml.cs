@@ -27,7 +27,7 @@ public partial class MainWindow : Window
         {
             Tab0Panel, Tab1Panel, Tab2Panel, Tab3Panel, Tab4Panel, Tab5Panel,
             Tab6Panel, Tab7Panel, Tab8Panel, Tab9Panel, Tab10Panel, Tab11Panel, Tab12Panel,
-            Tab13Panel
+            Tab13Panel, Tab14Panel
         };
 
         _activePanel = Tab0Panel;
@@ -80,7 +80,8 @@ public partial class MainWindow : Window
         var defaultStyle = (System.Windows.Style)FindResource("NavBtn");
 
         Button?[] btns = [Btn0, Btn1, Btn2, Btn3, Btn4, Btn5,
-                          Btn6, Btn7, Btn8, Btn9, Btn10, Btn11, Btn12, Btn13];
+                          Btn6, Btn7, Btn8, Btn9, Btn10, Btn11, Btn12, Btn13,
+                          Btn14];
         for (int i = 0; i < btns.Length; i++)
         {
             if (btns[i] != null)

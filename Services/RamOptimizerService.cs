@@ -92,6 +92,21 @@ public class RamOptimizerService
         return (freed, msg);
     }
 
+    // Jamais dégraissés : explorer.exe (redessine toute la UI Windows sinon) et les anti-triche /
+    // antivirus connus — beaucoup tournent avec des droits utilisateur normaux (pas protégés côté
+    // Windows), donc SetProcessWorkingSetSize réussirait silencieusement dessus sans cette
+    // exclusion explicite. Un anti-cheat dont la mémoire est manipulée par un tiers peut à minima
+    // dégrader ses perfs, au pire ressembler à de la triche à ses propres yeux.
+    private static readonly HashSet<string> NeverTrim = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "explorer",
+        "BEService", "BEDaemon",           // BattlEye
+        "EasyAntiCheat", "EasyAntiCheat_EOS",
+        "vgc", "vgk",                       // Riot Vanguard
+        "MsMpEng", "MpDefenderCoreService", // Windows Defender
+        "faceit",                           // FACEIT anti-cheat
+    };
+
     private int EmptyWorkingSets()
     {
         int count = 0;
@@ -102,8 +117,14 @@ public class RamOptimizerService
             {
                 // Ne compte que les appels qui ont réellement réussi — SetProcessWorkingSetSize
                 // renvoie false (sans exception) pour la plupart des process système/protégés,
-                // faute des droits PROCESS_SET_QUOTA nécessaires.
-                if (p.Id != currentPid && SetProcessWorkingSetSize(p.Handle, -1, -1))
+                // faute des droits PROCESS_SET_QUOTA nécessaires. On exclut en plus explicitement
+                // le jeu en cours (GameBoosterService.IsGameProcess), Explorer et les anti-triche/
+                // antivirus connus, qui eux tournent souvent avec des droits normaux et ne
+                // bénéficient donc PAS de cette protection implicite.
+                if (p.Id == currentPid) continue;
+                if (NeverTrim.Contains(p.ProcessName)) continue;
+                if (GameBoosterService.IsGameProcess(p.ProcessName)) continue;
+                if (SetProcessWorkingSetSize(p.Handle, -1, -1))
                     count++;
             }
             catch { }

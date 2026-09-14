@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using System.Diagnostics;
+using System.Management;
 
 namespace EkipppOptimizer.Services;
 
@@ -336,10 +337,11 @@ public class WindowsOptimizerService
         return m.Success ? m.Value : "381b4222-f694-41f0-9685-ff5bb260df2e";
     }
 
+    private const string UltimatePerfGuid = "e9a42b02-d5df-448d-aa00-03f14749eb61";
+    private const string BalancedGuid     = "381b4222-f694-41f0-9685-ff5bb260df2e";
+
     public bool SetUltimatePerfPlan(bool enable)
     {
-        const string ultimateGuid = "e9a42b02-d5df-448d-aa00-03f14749eb61";
-        const string balancedGuid = "381b4222-f694-41f0-9685-ff5bb260df2e";
         try
         {
             if (enable)
@@ -349,17 +351,23 @@ public class WindowsOptimizerService
                 // qui s'accumulent silencieusement dans les Options d'alimentation Windows.
                 var list = RunCmd("powercfg", "/list");
                 if (!list.Contains("Ultimate Performance", StringComparison.OrdinalIgnoreCase))
-                    RunCmd("powercfg", $"/duplicatescheme {ultimateGuid}");
-                RunCmd("powercfg", $"/setactive {ultimateGuid}");
+                    RunCmd("powercfg", $"/duplicatescheme {UltimatePerfGuid}");
+                RunCmd("powercfg", $"/setactive {UltimatePerfGuid}");
             }
             else
             {
-                RunCmd("powercfg", $"/setactive {balancedGuid}");
+                RunCmd("powercfg", $"/setactive {BalancedGuid}");
             }
             return true;
         }
         catch { return false; }
     }
+
+    // IsTurboActive (ViewModel) est piloté par ce constat, pas par un souvenir de "j'ai cliqué
+    // Turbo" : si l'utilisateur change de plan d'alimentation depuis les Paramètres Windows
+    // pendant que l'app tourne, ce reflet redevient faux au prochain LoadTweakStates().
+    public bool GetUltimatePerfPlanActive()
+        => string.Equals(GetActivePowerPlanGuid(), UltimatePerfGuid, StringComparison.OrdinalIgnoreCase);
 
     public void SetPowerPlan(string guid)
     {
@@ -379,6 +387,81 @@ public class WindowsOptimizerService
     {
         RunCmd("ipconfig", "/flushdns");
         RunCmd("ipconfig", "/registerdns");
+    }
+
+    // ── Core Parking ──────────────────────────────────────────────────────
+    // Empêche Windows de mettre des cœurs CPU en veille sous charge légère puis de devoir les
+    // "réveiller" brutalement — cause connue de micro-saccades dans les jeux à charge irrégulière
+    // comme GTA V/FiveM. Ne nécessite aucune distinction cœurs P/E : s'applique uniformément.
+    public TweakState GetCoreParking()
+    {
+        var output = RunCmd("powercfg", "/query SCHEME_CURRENT SUB_PROCESSOR CPMINCORES");
+        var m = System.Text.RegularExpressions.Regex.Match(output, @"Current AC Power Setting Index:\s*0x([0-9a-fA-F]+)");
+        if (!m.Success) return TweakState.Unknown;
+        int val = Convert.ToInt32(m.Groups[1].Value, 16);
+        return val >= 100 ? TweakState.On : TweakState.Off;
+    }
+    public bool SetCoreParking(bool disableParking)
+    {
+        try
+        {
+            int idx = disableParking ? 100 : 5;
+            RunCmd("powercfg", $"/setacvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES {idx}");
+            RunCmd("powercfg", $"/setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES {idx}");
+            RunCmd("powercfg", "/setactive SCHEME_CURRENT");
+            return true;
+        }
+        catch { return false; }
+    }
+
+    // ── Mode MSI (interruptions GPU) ──────────────────────────────────────
+    // Bascule le GPU des interruptions "à la ligne" (IRQ partagée, plus sujette aux micro-latences)
+    // vers les Message Signaled Interrupts — réduit la micro-saccade. Purement registre, aucun
+    // appel bas niveau : le chemin d'instance de périphérique vient de WMI (même mécanisme, déjà
+    // utilisé et validé dans CorePinningService pour détecter le CPU).
+    private static IEnumerable<string> GetGpuDeviceIds()
+    {
+        var ids = new List<string>();
+        try
+        {
+            using var searcher = new ManagementObjectSearcher("SELECT PNPDeviceID FROM Win32_VideoController");
+            foreach (ManagementObject o in searcher.Get())
+            {
+                var id = o["PNPDeviceID"]?.ToString();
+                if (!string.IsNullOrEmpty(id)) ids.Add(id);
+            }
+        }
+        catch { }
+        return ids;
+    }
+    public TweakState GetMsiMode()
+    {
+        var gpus = GetGpuDeviceIds().ToList();
+        if (gpus.Count == 0) return TweakState.Unknown;
+        foreach (var pnp in gpus)
+        {
+            using var k = Registry.LocalMachine.OpenSubKey(
+                $@"SYSTEM\CurrentControlSet\Enum\{pnp}\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties");
+            var v = k?.GetValue("MSISupported");
+            if (!(v is int i && i == 1)) return TweakState.Off;
+        }
+        return TweakState.On;
+    }
+    public bool SetMsiMode(bool enable)
+    {
+        bool anyOk = false;
+        foreach (var pnp in GetGpuDeviceIds())
+        {
+            try
+            {
+                using var k = Registry.LocalMachine.CreateSubKey(
+                    $@"SYSTEM\CurrentControlSet\Enum\{pnp}\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties");
+                k.SetValue("MSISupported", enable ? 1 : 0, RegistryValueKind.DWord);
+                anyOk = true;
+            }
+            catch { }
+        }
+        return anyOk;
     }
 
     private static string RunCmd(string exe, string args)

@@ -34,6 +34,7 @@ public partial class MainViewModel : ObservableObject
     private readonly AppUninstallerService   _uninstaller      = new();
     private readonly BrowserCleanerService   _browserCleaner   = new();
     private readonly FiveMDoctorService      _fivemDoctor      = new();
+    private readonly FiveMBoostService       _fivemBoost       = new();
 
     private DispatcherTimer? _monitorTimer;
     private DispatcherTimer? _diagDebounce;
@@ -191,6 +192,7 @@ public partial class MainViewModel : ObservableObject
     public bool IsTab10Active => SelectedTab == 10;
     public bool IsTab11Active => SelectedTab == 11;
     public bool IsTab12Active => SelectedTab == 12;
+    public bool IsTab14Active => SelectedTab == 14;
 
     [RelayCommand]
     private void SelectTab(string? tabStr)
@@ -1863,21 +1865,110 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    // ══════════════════════════════════════════════════════════════════════════
+    // TAB 14 — FIVEM BOOST
+    // ══════════════════════════════════════════════════════════════════════════
+    [ObservableProperty] private bool   _fivemInstalled      = false;
+    [ObservableProperty] private bool   _fivemSettingsFound  = false;
+    [ObservableProperty] private bool   _fivemGraphicsApplied = false;
+    [ObservableProperty] private bool   _fivemBusy           = false;
+    [ObservableProperty] private string _fivemStatusMessage  = "Vérification…";
+    [ObservableProperty] private string _fivemChangedSummary = "";
+    [ObservableProperty] private bool   _twCoreParking        = false;
+    [ObservableProperty] private bool   _twMsiMode            = false;
+    [ObservableProperty] private bool   _twFivemFullscreenOpt = false;
+    [ObservableProperty] private string _fivemCacheStatus     = "";
+    [ObservableProperty] private bool   _isFivemCacheBusy     = false;
+
+    [RelayCommand] private void ToggleCoreParking()        { _optimizer.SetCoreParking(!TwCoreParking);                TwCoreParking        = !TwCoreParking;        Toast("Core Parking");                  ScheduleDiagRefresh(); }
+    [RelayCommand] private void ToggleMsiMode()             { _optimizer.SetMsiMode(!TwMsiMode);                        TwMsiMode            = !TwMsiMode;            Toast("Mode MSI GPU");                  ScheduleDiagRefresh(); }
+    [RelayCommand] private void ToggleFivemFullscreenOpt()  { _fivemBoost.SetFullscreenOptOff(!TwFivemFullscreenOpt);   TwFivemFullscreenOpt = !TwFivemFullscreenOpt; Toast("Optimisations plein écran FiveM"); }
+
     [RelayCommand]
-    private async Task OptimizeFiveMAsync()
+    private async Task CleanFivemCacheAsync()
     {
-        BoostStatus = "Optimisation FiveM en cours…";
+        IsFivemCacheBusy = true;
+        FivemCacheStatus = "Analyse du cache FiveM…";
+        var freed = await Task.Run(() =>
+        {
+            var cache = _gameCache.ScanAll().FirstOrDefault(c => c.Game == "FiveM / alt:V");
+            return cache == null || cache.IsEmpty ? 0L : _gameCache.CleanAsync(cache).GetAwaiter().GetResult();
+        });
+        FivemCacheStatus = freed > 0
+            ? $"✓ Cache FiveM nettoyé — {(freed >= 1L << 20 ? $"{freed / (1024.0 * 1024):F0} Mo" : $"{freed / 1024.0:F0} Ko")} libérés."
+            : "Cache FiveM déjà propre — rien à nettoyer.";
+        ShowToast?.Invoke("FiveM Boost", FivemCacheStatus);
+        IsFivemCacheBusy = false;
+    }
+
+    public void RefreshFivemStatus()
+    {
+        var s = _fivemBoost.GetStatus();
+        FivemInstalled        = s.FiveMInstalled;
+        FivemSettingsFound    = s.SettingsFound;
+        FivemGraphicsApplied  = s.BackupExists;
+        TwFivemFullscreenOpt  = _fivemBoost.GetFullscreenOptOff();
+        FivemStatusMessage = !s.FiveMInstalled
+            ? "FiveM non détecté sur ce PC."
+            : !s.SettingsFound
+                ? "FiveM détecté, mais aucun réglage graphique trouvé — lance FiveM une fois puis reviens ici."
+                : s.GameProcessRunning
+                    ? $"FiveM détecté et en cours d'exécution — réglages trouvés ({s.SettingsPath})."
+                    : $"FiveM détecté — réglages trouvés. Lance FiveM pour appliquer la priorité processus.";
+    }
+
+    [RelayCommand]
+    private async Task ApplyFivemBoostAsync()
+    {
+        FivemBusy = true;
+        FivemStatusMessage = "Application du boost FiveM…";
+        var changed = new List<string>();
+        string graphicsMsg = "";
+
         await Task.Run(() =>
         {
+            // Volet Windows — mêmes leviers que l'onglet Gaming, appliqués directement pour FiveM.
             _optimizer.SetGameDvr(true);
             _optimizer.SetFullscreenOptim(true);
             _optimizer.SetGpuPriority(true);
             _optimizer.SetNetworkThrottling(true);
             _optimizer.OptimizeTcp();
+            _optimizer.SetCoreParking(true);
+            _optimizer.SetMsiMode(true);
+
+            // Volet processus — immédiat si FiveM tourne déjà, + flag de compatibilité ciblé.
+            _fivemBoost.BoostRunningProcessNow();
+            _fivemBoost.SetFullscreenOptOff(true);
+
+            // Volet graphismes en jeu — le levier avec le plus d'impact réel sur les FPS.
+            var result = _fivemBoost.ApplyFpsGraphicsPreset();
+            graphicsMsg = result.Message;
+            if (result.Success) changed.AddRange(result.ChangedLabels);
         });
+
         LoadTweakStates();
-        BoostStatus = "✓ FiveM optimisé — Game DVR off, GPU priority, TCP optimisé.";
-        ShowToast?.Invoke("FiveM", "Optimisations FiveM appliquées ✓");
+        RefreshFivemStatus();
+
+        FivemChangedSummary = changed.Count > 0 ? string.Join(" · ", changed) : "";
+        FivemStatusMessage = changed.Count > 0
+            ? $"✓ Boost appliqué — {graphicsMsg} Priorité processus, DVR, GPU priority, mode MSI, core parking, plein écran et réseau optimisés côté Windows."
+            : $"Tweaks Windows appliqués. {graphicsMsg}";
+        ShowToast?.Invoke("FiveM Boost", changed.Count > 0
+            ? $"{changed.Count} réglage(s) graphique(s) + tweaks Windows appliqués ✓"
+            : "Tweaks Windows appliqués ✓");
+        FivemBusy = false;
+    }
+
+    [RelayCommand]
+    private async Task RestoreFivemGraphicsAsync()
+    {
+        FivemBusy = true;
+        var (success, message) = await Task.Run(() => _fivemBoost.RestoreOriginalGraphics());
+        RefreshFivemStatus();
+        FivemChangedSummary = "";
+        FivemStatusMessage = message;
+        ShowToast?.Invoke("FiveM Boost", message);
+        FivemBusy = false;
     }
 
     [RelayCommand]
@@ -2485,15 +2576,17 @@ td{{padding:6px 8px;font-size:13px;border-bottom:1px solid #1E1232;color:#C2B5E0
         LoadPersistedSnapshot();
         RestorePersistedProfile();
         LoadAutoStartState();
-        // Le Mode Turbo était actif à la fermeture précédente (fermeture normale ou crash) et les
-        // services Windows qu'il a arrêtés (SysMain, WSearch…) le sont peut-être toujours — on
-        // reflète cet état réel au lieu d'afficher "Désactivé" alors que rien n'a été restauré.
-        if (_serviceOptimizer.IsOptimized)
+        // Le Mode Turbo était peut-être actif à la fermeture précédente (fermeture normale ou
+        // crash) — on ne se fie pas au drapeau mémoire/registre seul : CheckActuallyOptimized()
+        // relit le statut réel des services (Windows a pu les relancer entre-temps), et
+        // GetUltimatePerfPlanActive() relit le plan d'alimentation réellement actif.
+        if (_serviceOptimizer.CheckActuallyOptimized() || _optimizer.GetUltimatePerfPlanActive())
         {
             IsTurboActive = true;
             TurboSummary  = "TURBO ACTIF (restauré depuis la session précédente) — cliquez pour désactiver et restaurer les services Windows.";
         }
         AppliedDns = _dnsTest.GetCurrentDnsName(); // lit depuis l'adaptateur réseau, pas depuis un cache
+        RefreshFivemStatus();
         LoadHistory();
         LoadWeeklyScore();
         _ = RunAnalysisAsync();
@@ -2505,6 +2598,20 @@ td{{padding:6px 8px;font-size:13px;border-bottom:1px solid #1E1232;color:#C2B5E0
 
     private void LoadTweakStates()
     {
+        // Auto-correction de dérive : si l'app croit encore le Turbo actif mais que ni les
+        // services ni le plan d'alimentation ne le confirment (Windows Update, action manuelle,
+        // relance d'un service par l'utilisateur…), on ne laisse pas l'interface mentir.
+        // Volontairement à sens unique : on ne fait jamais passer IsTurboActive à true ici — un
+        // plan Ultimate choisi manuellement par l'utilisateur sans passer par l'app ne doit pas
+        // afficher "Turbo actif" à sa place.
+        if (IsTurboActive && !_serviceOptimizer.CheckActuallyOptimized() && !_optimizer.GetUltimatePerfPlanActive())
+        {
+            IsTurboActive = false;
+            TurboSummary  = "Désactivé — les réglages ont changé depuis en dehors de l'app (mise à jour Windows, action manuelle…).";
+        }
+
+        TwCoreParking     = _optimizer.GetCoreParking()          == TweakState.On;
+        TwMsiMode         = _optimizer.GetMsiMode()              == TweakState.On;
         TwGameDvr         = _optimizer.GetGameDvr()              == TweakState.On;
         TwFullscreenOptim = _optimizer.GetFullscreenOptim()      == TweakState.On;
         TwGpuPriority     = _optimizer.GetGpuPriority()          == TweakState.On;
