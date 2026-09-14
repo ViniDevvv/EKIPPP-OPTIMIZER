@@ -27,8 +27,11 @@ public partial class TweakRow : ContentControl
     public ICommand? Command   { get => (ICommand?)GetValue(CommandProperty); set => SetValue(CommandProperty,  value); }
     public bool      IsLast    { get => (bool)GetValue(IsLastProperty);      set => SetValue(IsLastProperty,    value); }
 
-    private const double TrackW = 44, TrackH = 24, ThumbD = 18, Pad = 3;
-    private const double ThumbTravel = TrackW - ThumbD - Pad * 2;
+    private const double TrackW = 44, TrackH = 24, ThumbD = 18, Pad = 3, TrackBorder = 1;
+    // La zone de contenu de la piste est réduite par sa bordure des DEUX côtés (Border.BorderThickness
+    // mange dans l'espace disponible pour l'enfant) — oublié dans un premier temps, ce qui faisait
+    // sortir le curseur de 2px hors de la piste à l'état "activé".
+    private const double ThumbTravel = TrackW - TrackBorder * 2 - ThumbD - Pad * 2;
     private static readonly TimeSpan Dur = TimeSpan.FromMilliseconds(180);
 
     private static Color Col(string hex) => (Color)ColorConverter.ConvertFromString(hex);
@@ -92,6 +95,8 @@ public partial class TweakRow : ContentControl
             Width = ThumbD, Height = ThumbD, CornerRadius = new CornerRadius(ThumbD / 2),
             Background = _thumbBg,
             Margin = new Thickness(Pad, 0, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
             RenderTransform = _thumbX,
             Effect = new DropShadowEffect { Color = Colors.Black, Opacity = .35, BlurRadius = 4, ShadowDepth = 1 }
         };

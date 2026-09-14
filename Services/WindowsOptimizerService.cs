@@ -558,35 +558,50 @@ public class WindowsOptimizerService
         catch { return false; }
     }
 
-    private static string RunCmd(string exe, string args)
+    // Lit la sortie de façon asynchrone AVANT d'attendre la fin du process : si on attendait
+    // WaitForExit() en premier sans drainer le pipe de sortie, un process qui écrit plus que la
+    // taille du buffer (quelques Ko) se bloque en écriture — deadlock classique, silencieux, qui
+    // fige l'appelant indéfiniment. Timeout dur en filet de sécurité (antivirus/pare-feu tiers qui
+    // intercepterait la commande) : le process est tué plutôt que d'attendre indéfiniment.
+    private static string RunCmd(string exe, string args, int timeoutMs = 8000)
     {
         try
         {
-            var p = Process.Start(new ProcessStartInfo(exe, args)
+            using var p = Process.Start(new ProcessStartInfo(exe, args)
             {
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 CreateNoWindow = true
             });
-            var output = p?.StandardOutput.ReadToEnd() ?? "";
-            p?.WaitForExit();
-            return output;
+            if (p == null) return "";
+            var readTask = p.StandardOutput.ReadToEndAsync();
+            if (!p.WaitForExit(timeoutMs))
+            {
+                try { p.Kill(entireProcessTree: true); } catch { }
+                return "";
+            }
+            return readTask.Wait(2000) ? readTask.Result : "";
         }
         catch { return ""; }
     }
 
-    private static bool RunCmdOk(string exe, string args)
+    private static bool RunCmdOk(string exe, string args, int timeoutMs = 8000)
     {
         try
         {
-            var p = Process.Start(new ProcessStartInfo(exe, args)
+            // Pas de redirection de sortie : on ne s'en sert pas, et rediriger sans jamais lire
+            // est exactement ce qui cause le deadlock décrit ci-dessus.
+            using var p = Process.Start(new ProcessStartInfo(exe, args)
             {
                 UseShellExecute = false,
-                RedirectStandardOutput = true,
                 CreateNoWindow = true
             });
             if (p == null) return false;
-            p.WaitForExit();
+            if (!p.WaitForExit(timeoutMs))
+            {
+                try { p.Kill(entireProcessTree: true); } catch { }
+                return false;
+            }
             return p.ExitCode == 0;
         }
         catch { return false; }

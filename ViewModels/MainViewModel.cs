@@ -1734,14 +1734,14 @@ public partial class MainViewModel : ObservableObject
         });
     }
 
-    [RelayCommand] private void ToggleGameDvr()         { _optimizer.SetGameDvr(!TwGameDvr);                  TwGameDvr         = !TwGameDvr;         Toast("Game DVR");                ScheduleDiagRefresh(); }
-    [RelayCommand] private void ToggleFullscreenOptim() { _optimizer.SetFullscreenOptim(!TwFullscreenOptim);  TwFullscreenOptim = !TwFullscreenOptim; Toast("Optimisations plein écran"); ScheduleDiagRefresh(); }
-    [RelayCommand] private void ToggleGpuPriority()     { _optimizer.SetGpuPriority(!TwGpuPriority);          TwGpuPriority     = !TwGpuPriority;     Toast("Priorité GPU/CPU");         ScheduleDiagRefresh(); }
-    [RelayCommand] private void ToggleSystemResp()      { _optimizer.SetSystemResponsiveness(!TwSystemResp);  TwSystemResp      = !TwSystemResp;      Toast("Réactivité système");        ScheduleDiagRefresh(); }
-    [RelayCommand] private void ToggleWin32Priority()   { _optimizer.SetWin32Priority(!TwWin32Priority);      TwWin32Priority   = !TwWin32Priority;   Toast("Priorité premier plan");     ScheduleDiagRefresh(); }
-    [RelayCommand] private void ToggleMousePrecision()  { _optimizer.SetMousePrecision(!TwMousePrecision);    TwMousePrecision  = !TwMousePrecision;  Toast("Accélération souris");       ScheduleDiagRefresh(); }
-    [RelayCommand] private void ToggleHighPerfPlan()    { _optimizer.SetHighPerfPlan(!TwHighPerfPlan);        TwHighPerfPlan    = !TwHighPerfPlan;    Toast("Plan hautes performances");  ScheduleDiagRefresh(); }
-    [RelayCommand] private void ToggleNetThrottle()     { _optimizer.SetNetworkThrottling(!TwNetThrottle);    TwNetThrottle     = !TwNetThrottle;     Toast("Network Throttling");        ScheduleDiagRefresh(); }
+    [RelayCommand] private void ToggleGameDvr()         { _optimizer.SetGameDvr(!TwGameDvr);                 TwGameDvr         = !TwGameDvr;         Toast("Game DVR");                  ScheduleDiagRefresh(); }
+    [RelayCommand] private void ToggleFullscreenOptim() { _optimizer.SetFullscreenOptim(!TwFullscreenOptim); TwFullscreenOptim = !TwFullscreenOptim; Toast("Optimisations plein écran"); ScheduleDiagRefresh(); }
+    [RelayCommand] private void ToggleGpuPriority()     { if (_optimizer.SetGpuPriority(!TwGpuPriority)      ) { TwGpuPriority     = !TwGpuPriority;     Toast("Priorité GPU/CPU");          } else ToastFail("Priorité GPU/CPU");        ScheduleDiagRefresh(); }
+    [RelayCommand] private void ToggleSystemResp()      { if (_optimizer.SetSystemResponsiveness(!TwSystemResp)) { TwSystemResp      = !TwSystemResp;      Toast("Réactivité système");        } else ToastFail("Réactivité système");      ScheduleDiagRefresh(); }
+    [RelayCommand] private void ToggleWin32Priority()   { if (_optimizer.SetWin32Priority(!TwWin32Priority)  ) { TwWin32Priority   = !TwWin32Priority;   Toast("Priorité premier plan");     } else ToastFail("Priorité premier plan");   ScheduleDiagRefresh(); }
+    [RelayCommand] private void ToggleMousePrecision()  { _optimizer.SetMousePrecision(!TwMousePrecision);   TwMousePrecision  = !TwMousePrecision;  Toast("Accélération souris");       ScheduleDiagRefresh(); }
+    [RelayCommand] private void ToggleHighPerfPlan()    { if (_optimizer.SetHighPerfPlan(!TwHighPerfPlan)    ) { TwHighPerfPlan    = !TwHighPerfPlan;    Toast("Plan hautes performances");  } else ToastFail("Plan hautes performances"); ScheduleDiagRefresh(); }
+    [RelayCommand] private void ToggleNetThrottle()     { if (_optimizer.SetNetworkThrottling(!TwNetThrottle)) { TwNetThrottle     = !TwNetThrottle;     Toast("Network Throttling");        } else ToastFail("Network Throttling");      ScheduleDiagRefresh(); }
 
     // ── Game Booster ─────────────────────────────────────────────────────────
     [ObservableProperty] private bool   _isBoostActive      = false;
@@ -1884,13 +1884,13 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _fivemCacheStatus     = "";
     [ObservableProperty] private bool   _isFivemCacheBusy     = false;
 
-    [RelayCommand] private void ToggleCoreParking()        { _optimizer.SetCoreParking(!TwCoreParking);                TwCoreParking        = !TwCoreParking;        Toast("Core Parking");                  ScheduleDiagRefresh(); }
-    [RelayCommand] private void ToggleMsiMode()             { _optimizer.SetMsiMode(!TwMsiMode);                        TwMsiMode            = !TwMsiMode;            Toast("Mode MSI GPU");                  ScheduleDiagRefresh(); }
-    [RelayCommand] private void ToggleFivemFullscreenOpt()  { _fivemBoost.SetFullscreenOptOff(!TwFivemFullscreenOpt);   TwFivemFullscreenOpt = !TwFivemFullscreenOpt; Toast("Optimisations plein écran FiveM"); }
-    [RelayCommand] private void ToggleHags()                { _optimizer.SetHagsEnabled(!TwHags);                       TwHags               = !TwHags;               Toast("Planification GPU matérielle (redémarrage requis)"); ScheduleDiagRefresh(); }
-    [RelayCommand] private void ToggleTcpNoDelay()          { _optimizer.SetTcpNoDelay(!TwTcpNoDelay);                  TwTcpNoDelay         = !TwTcpNoDelay;         Toast("Anti-Nagle réseau"); }
-    [RelayCommand] private void ToggleGamesProfile()        { _optimizer.SetGamesTaskProfile(!TwGamesProfile);          TwGamesProfile       = !TwGamesProfile;       Toast("Profil Windows \"Games\""); }
-    [RelayCommand] private void ToggleGpuPreference()       { _fivemBoost.SetGpuPreference(!TwGpuPreference);           TwGpuPreference      = !TwGpuPreference;      Toast("GPU dédié pour FiveM"); }
+    [RelayCommand] private void ToggleCoreParking()        { if (_optimizer.SetCoreParking(!TwCoreParking)              ) { TwCoreParking        = !TwCoreParking;        Toast("Core Parking");                    } else ToastFail("Core Parking");                  ScheduleDiagRefresh(); }
+    [RelayCommand] private void ToggleMsiMode()             { if (_optimizer.SetMsiMode(!TwMsiMode)                      ) { TwMsiMode            = !TwMsiMode;            Toast("Mode MSI GPU");                    } else ToastFail("Mode MSI GPU");                  ScheduleDiagRefresh(); }
+    [RelayCommand] private void ToggleFivemFullscreenOpt()  { if (_fivemBoost.SetFullscreenOptOff(!TwFivemFullscreenOpt)) { TwFivemFullscreenOpt = !TwFivemFullscreenOpt; Toast("Optimisations plein écran FiveM"); } else ToastFail("Optimisations plein écran FiveM (lance FiveM au moins une fois)"); }
+    [RelayCommand] private void ToggleHags()                { if (_optimizer.SetHagsEnabled(!TwHags)                     ) { TwHags               = !TwHags;               Toast("Planification GPU matérielle (redémarrage requis)"); } else ToastFail("Planification GPU matérielle"); ScheduleDiagRefresh(); }
+    [RelayCommand] private void ToggleTcpNoDelay()          { if (_optimizer.SetTcpNoDelay(!TwTcpNoDelay)                ) { TwTcpNoDelay         = !TwTcpNoDelay;         Toast("Anti-Nagle réseau");               } else ToastFail("Anti-Nagle réseau"); }
+    [RelayCommand] private void ToggleGamesProfile()        { if (_optimizer.SetGamesTaskProfile(!TwGamesProfile)        ) { TwGamesProfile       = !TwGamesProfile;       Toast("Profil Windows \"Games\"");        } else ToastFail("Profil Windows \"Games\""); }
+    [RelayCommand] private void ToggleGpuPreference()       { if (_fivemBoost.SetGpuPreference(!TwGpuPreference)         ) { TwGpuPreference      = !TwGpuPreference;      Toast("GPU dédié pour FiveM");            } else ToastFail("GPU dédié pour FiveM (lance FiveM au moins une fois)"); }
 
     [RelayCommand]
     private async Task CleanFivemCacheAsync()
@@ -1936,34 +1936,76 @@ public partial class MainViewModel : ObservableObject
         FivemStatusMessage = "Application du boost FiveM…";
         var changed = new List<string>();
         string graphicsMsg = "";
+        bool timedOut = false;
+        Exception? failure = null;
 
-        await Task.Run(() =>
+        try
         {
-            // Volet Windows — mêmes leviers que l'onglet Gaming, appliqués directement pour FiveM.
-            _optimizer.SetGameDvr(true);
-            _optimizer.SetFullscreenOptim(true);
-            _optimizer.SetGpuPriority(true);
-            _optimizer.SetNetworkThrottling(true);
-            _optimizer.OptimizeTcp();
-            _optimizer.SetCoreParking(true);
-            _optimizer.SetMsiMode(true);
-            _optimizer.SetHagsEnabled(true);
-            _optimizer.SetTcpNoDelay(true);
-            _optimizer.SetGamesTaskProfile(true);
+            var work = Task.Run(() =>
+            {
+                // Volet Windows — chaque appel est indépendant (registre/WMI/process externe),
+                // lancés en parallèle : chaque netsh/powercfg a un coût de démarrage réel
+                // (~150-400ms), les enchaîner un par un pouvait faire traîner l'opération.
+                GraphicsApplyResult? result = null;
+                Parallel.Invoke(
+                    () => _optimizer.SetGameDvr(true),
+                    () => _optimizer.SetFullscreenOptim(true),
+                    () => _optimizer.SetGpuPriority(true),
+                    () => _optimizer.SetNetworkThrottling(true),
+                    () => _optimizer.OptimizeTcp(),
+                    () => _optimizer.SetCoreParking(true),
+                    () => _optimizer.SetMsiMode(true),
+                    () => _optimizer.SetHagsEnabled(true),
+                    () => _optimizer.SetTcpNoDelay(true),
+                    () => _optimizer.SetGamesTaskProfile(true),
+                    () => _fivemBoost.BoostRunningProcessNow(),
+                    () => _fivemBoost.SetFullscreenOptOff(true),
+                    () => _fivemBoost.SetGpuPreference(true),
+                    () => result = _fivemBoost.ApplyFpsGraphicsPreset()
+                );
+                return result;
+            });
 
-            // Volet processus — immédiat si FiveM tourne déjà, + flag de compatibilité ciblé.
-            _fivemBoost.BoostRunningProcessNow();
-            _fivemBoost.SetFullscreenOptOff(true);
-            _fivemBoost.SetGpuPreference(true);
-
-            // Volet graphismes en jeu — le levier avec le plus d'impact réel sur les FPS.
-            var result = _fivemBoost.ApplyFpsGraphicsPreset();
-            graphicsMsg = result.Message;
-            if (result.Success) changed.AddRange(result.ChangedLabels);
-        });
+            // Garde-fou : si un appel système reste bloqué pour une raison hors de notre contrôle
+            // (ex: pilote/antivirus tiers qui intercepte netsh/powercfg), on ne laisse plus jamais
+            // le bouton tourner indéfiniment — l'utilisateur récupère la main après 25s max.
+            var completed = await Task.WhenAny(work, Task.Delay(TimeSpan.FromSeconds(25)));
+            if (completed != work)
+            {
+                timedOut = true;
+            }
+            else
+            {
+                var result = await work; // déjà terminé — récupère le résultat sans re-bloquer
+                if (result != null)
+                {
+                    graphicsMsg = result.Message;
+                    if (result.Success) changed.AddRange(result.ChangedLabels);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
 
         LoadTweakStates();
         RefreshFivemStatus();
+
+        if (timedOut)
+        {
+            FivemStatusMessage = "⚠ Ça prend anormalement longtemps (plus de 25s) — un logiciel tiers (antivirus, pare-feu) bloque peut-être netsh/powercfg. Réessaie, et si ça persiste, dis-le-moi.";
+            ShowToast?.Invoke("FiveM Boost", "Opération anormalement longue — vérifie ton antivirus/pare-feu");
+            FivemBusy = false;
+            return;
+        }
+        if (failure != null)
+        {
+            FivemStatusMessage = $"⚠ Erreur pendant le boost : {failure.Message}";
+            ShowToast?.Invoke("FiveM Boost", "Une erreur est survenue");
+            FivemBusy = false;
+            return;
+        }
 
         FivemChangedSummary = changed.Count > 0 ? string.Join(" · ", changed) : "";
         FivemStatusMessage = changed.Count > 0
@@ -2464,7 +2506,7 @@ public partial class MainViewModel : ObservableObject
     // ══════════════════════════════════════════════════════════════════════════
     // MISE À JOUR & RAPPORT
     // ══════════════════════════════════════════════════════════════════════════
-    private const string AppVersion = "1.3.0";
+    private const string AppVersion = "1.3.2";
     public  string VersionDisplay   => $"v{AppVersion}";
     private const string UpdateUrl  = "https://ekippp.fr/optimizer/version.json";
 

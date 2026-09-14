@@ -50,6 +50,13 @@ public class FiveMBoostService
     private static string DataFolder =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FiveM", "FiveM.app");
 
+    // Le lanceur FiveM.exe vit dans %LOCALAPPDATA%\FiveM\, UN NIVEAU AU-DESSUS de FiveM.app (qui ne
+    // contient que les données/cache) — vérifié en conditions réelles, FiveM.app\FiveM.exe n'existe
+    // jamais. Erreur d'hypothèse initiale qui cassait silencieusement le plein écran ciblé et le
+    // GPU dédié (chemin introuvable → aucun des deux tweaks n'était réellement appliqué).
+    private static string LauncherPath =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FiveM", "FiveM.exe");
+
     // FiveM tourne sur le moteur GTA V "legacy" et réutilise donc son fichier de réglages
     // graphiques natif — PAS un fichier propre à FiveM sous AppData. Il vit dans le dossier
     // Documents (déjà correctement redirigé par SpecialFolder.MyDocuments si OneDrive/Documents
@@ -183,7 +190,7 @@ public class FiveMBoostService
         var paths = new List<string>();
         try
         {
-            var launcher = Path.Combine(DataFolder, "FiveM.exe");
+            var launcher = LauncherPath;
             if (File.Exists(launcher)) paths.Add(launcher);
         }
         catch { }
@@ -229,7 +236,7 @@ public class FiveMBoostService
         {
             using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(LayersKey);
             if (k == null) return false;
-            var launcher = Path.Combine(DataFolder, "FiveM.exe");
+            var launcher = LauncherPath;
             var v = k.GetValue(launcher) as string;
             return v != null && v.Contains("DISABLEDXMAXIMIZEDWINDOWEDMODE");
         }
@@ -249,7 +256,7 @@ public class FiveMBoostService
         var paths = new List<string>();
         try
         {
-            var launcher = Path.Combine(DataFolder, "FiveM.exe");
+            var launcher = LauncherPath;
             if (File.Exists(launcher)) paths.Add(launcher);
         }
         catch { }
@@ -284,7 +291,7 @@ public class FiveMBoostService
         {
             using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(GpuPrefKey);
             if (k == null) return false;
-            var launcher = Path.Combine(DataFolder, "FiveM.exe");
+            var launcher = LauncherPath;
             var v = k.GetValue(launcher) as string;
             return v != null && v.Contains("GpuPreference=2");
         }
