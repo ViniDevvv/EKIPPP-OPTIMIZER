@@ -66,10 +66,21 @@ public class LicenseService
                 new StringContent(payload, System.Text.Encoding.UTF8, "application/json"));
 
             var json = await resp.Content.ReadAsStringAsync();
+
+            // Un statut non-2xx (erreur serveur, quota, projet en pause, proxy tiers qui renvoie
+            // une page d'erreur...) n'a rien à voir avec la clé — le signaler comme tel plutôt que
+            // de tenter de le faire rentrer dans le format de réponse attendu et d'afficher "clé
+            // invalide" par erreur, ce qui égare autant le client que le support.
+            if (!resp.IsSuccessStatusCode)
+                return new LicenseValidation(false, LicenseStatus.NetworkError);
+
             using var doc = System.Text.Json.JsonDocument.Parse(json);
             var root = doc.RootElement;
 
-            if (root.TryGetProperty("success", out var s) && s.GetBoolean())
+            if (!root.TryGetProperty("success", out var s))
+                return new LicenseValidation(false, LicenseStatus.NetworkError);
+
+            if (s.GetBoolean())
             {
                 SaveKey(key);
                 return new LicenseValidation(true, LicenseStatus.Ok);

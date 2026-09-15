@@ -2506,7 +2506,7 @@ public partial class MainViewModel : ObservableObject
     // ══════════════════════════════════════════════════════════════════════════
     // MISE À JOUR & RAPPORT
     // ══════════════════════════════════════════════════════════════════════════
-    private const string AppVersion = "1.3.3";
+    private const string AppVersion = "1.3.4";
     public  string VersionDisplay   => $"v{AppVersion}";
     private const string UpdateUrl  = "https://ekippp.fr/optimizer/version.json";
 
